@@ -1,6 +1,6 @@
 {
   "name": "giseragent-frontend",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "main": "electron/main.cjs",
   "private": true,
   "type": "module",

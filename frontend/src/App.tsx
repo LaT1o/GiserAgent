@@ -28,6 +28,7 @@ import {
   subscribeEvents,
   updateSettings,
 } from "./api/client";
+import { normalizeBasemap } from "./types";
 import type {
   AgentEvent,
   AppSettings,
@@ -140,7 +141,7 @@ export default function App() {
     minSecond: 120,
   });
   // 地图工作区由 App 持有：侧栏图层列表与中间地图共享同一份状态。
-  const map = useMapWorkspace(mapContext, mapRevision, settings?.map?.basemap ?? "tianditu");
+  const map = useMapWorkspace(mapContext, mapRevision, normalizeBasemap(settings?.map?.basemap));
 
   const setBusyFor = useCallback((id: string, value: boolean) => {
     setBusyBySession((prev) => ({ ...prev, [id]: value }));
@@ -1032,12 +1033,20 @@ export default function App() {
         <MapPanel
           workspace={map}
           projectTitle={mapContext.title}
-          basemap={settings?.map?.basemap ?? "tianditu"}
+          basemap={normalizeBasemap(settings?.map?.basemap)}
+          annotations={settings?.map?.annotations !== false}
           tiandituToken={settings?.map?.tiandituToken}
           onBasemapChange={(next) => {
             // 整体提交 map：sanitize 会重建该对象，缺字段会被视为清除（密钥不能丢）
             handleSaveSettings({
-              map: { ...(settings?.map ?? { basemap: "tianditu" }), basemap: next },
+              map: { ...(settings?.map ?? { basemap: "tianditu_vec" }), basemap: next },
+            }).catch(() => {
+              /* 错误已由 handleSaveSettings 全局提示 */
+            });
+          }}
+          onAnnotationsChange={(next) => {
+            handleSaveSettings({
+              map: { ...(settings?.map ?? { basemap: "tianditu_vec" }), annotations: next },
             }).catch(() => {
               /* 错误已由 handleSaveSettings 全局提示 */
             });

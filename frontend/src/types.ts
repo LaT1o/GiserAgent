@@ -206,10 +206,21 @@ export interface CompactionSettings {
   keepPercent: number;
 }
 
+/** 底图模式：天地图矢量 / 天地图影像 / 无底图（纯矢量工作区） */
+export type BasemapMode = "tianditu_vec" | "tianditu_img" | "none";
+
 /** 地图底图设置（workspace/settings.json；天地图密钥由用户在设置页维护） */
 export interface MapSettings {
-  basemap: "tianditu" | "none";
+  basemap: BasemapMode;
+  /** 天地图注记图层（矢量 cva_w / 影像 cia_w）；缺省视为开启 */
+  annotations?: boolean;
   tiandituToken?: string;
+}
+
+/** 宽松输入归一化为合法底图模式（兼容旧值 "tianditu" = 矢量，未知值回退矢量） */
+export function normalizeBasemap(raw: unknown): BasemapMode {
+  if (raw === "tianditu_img" || raw === "none") return raw;
+  return "tianditu_vec";
 }
 
 /** 应用设置（workspace/settings.json） */

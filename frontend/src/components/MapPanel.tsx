@@ -9,6 +9,7 @@
 import { useState, type CSSProperties } from "react";
 import type { MapWorkspace } from "../map/useMapWorkspace";
 import { useVectorDrop } from "../map/useVectorDrop";
+import type { BasemapMode } from "../types";
 import MapView from "./MapView";
 import MapAttributeTable from "./MapAttributeTable";
 import RowSplitter from "./RowSplitter";
@@ -19,10 +20,14 @@ interface Props {
   /** 当前项目/临时目录名称（地图标题） */
   projectTitle: string;
   /** 底图模式与天地图密钥（来自应用设置） */
-  basemap: "tianditu" | "none";
+  basemap: BasemapMode;
+  /** 天地图注记图层开关（来自应用设置） */
+  annotations: boolean;
   tiandituToken?: string;
   /** 切换底图（写应用设置；「无底图」为纯矢量工作区） */
-  onBasemapChange: (basemap: "tianditu" | "none") => void;
+  onBasemapChange: (basemap: BasemapMode) => void;
+  /** 切换天地图注记图层（写应用设置） */
+  onAnnotationsChange: (annotations: boolean) => void;
   onClose: () => void;
 }
 
@@ -30,8 +35,10 @@ export default function MapPanel({
   workspace,
   projectTitle,
   basemap,
+  annotations,
   tiandituToken,
   onBasemapChange,
+  onAnnotationsChange,
   onClose,
 }: Props) {
   const {
@@ -147,12 +154,21 @@ export default function MapPanel({
           <span className="map-tool-label">底图</span>
           <button
             type="button"
-            className={`map-tool-btn ${basemap === "tianditu" ? "active" : ""}`}
-            title="天地图底图（密钥在「设置 → 地图」中填写）"
-            aria-pressed={basemap === "tianditu"}
-            onClick={() => onBasemapChange("tianditu")}
+            className={`map-tool-btn ${basemap === "tianditu_vec" ? "active" : ""}`}
+            title="天地图矢量底图（密钥在「设置 → 地图」中填写）"
+            aria-pressed={basemap === "tianditu_vec"}
+            onClick={() => onBasemapChange("tianditu_vec")}
           >
-            天地图
+            矢量
+          </button>
+          <button
+            type="button"
+            className={`map-tool-btn ${basemap === "tianditu_img" ? "active" : ""}`}
+            title="天地图影像底图（密钥在「设置 → 地图」中填写）"
+            aria-pressed={basemap === "tianditu_img"}
+            onClick={() => onBasemapChange("tianditu_img")}
+          >
+            影像
           </button>
           <button
             type="button"
@@ -162,6 +178,16 @@ export default function MapPanel({
             onClick={() => onBasemapChange("none")}
           >
             无
+          </button>
+          <button
+            type="button"
+            className={`map-tool-btn ${annotations ? "active" : ""}`}
+            title={basemap === "none" ? "注记图层需配合天地图底图使用" : "天地图注记图层（地名/道路标注）"}
+            aria-pressed={annotations}
+            disabled={basemap === "none"}
+            onClick={() => onAnnotationsChange(!annotations)}
+          >
+            注记
           </button>
         </div>
       </div>
@@ -180,6 +206,7 @@ export default function MapPanel({
           layers={mapLayers}
           viewCrs={viewCrs}
           basemap={basemap}
+          annotations={annotations}
           tiandituToken={tiandituToken}
           onFeatureSelect={setSelected}
           onBasemapNotice={setBasemapNotice}

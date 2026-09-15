@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import type { AppSettings, AvailableModel, CompactionSettings, SessionInfo } from "../types";
+import type { AppSettings, AvailableModel, BasemapMode, CompactionSettings, SessionInfo } from "../types";
 import ProviderManager from "./ProviderManager";
 import SkillsManager from "./SkillsManager";
 import TrashPanel from "./TrashPanel";
@@ -79,6 +79,7 @@ export default function SettingsDialog({
   const [mapDraft, setMapDraft] = useState(() => ({ ...settings.map }));
   const mapDirty =
     mapDraft.basemap !== settings.map.basemap ||
+    (mapDraft.annotations ?? true) !== (settings.map.annotations ?? true) ||
     (mapDraft.tiandituToken ?? "") !== (settings.map.tiandituToken ?? "");
   const modelGroups = useMemo(() => groupModels(models), [models]);
 
@@ -338,15 +339,30 @@ export default function SettingsDialog({
               <select
                 value={mapDraft.basemap}
                 onChange={(e) =>
-                  setMapDraft((draft) => ({ ...draft, basemap: e.target.value as "tianditu" | "none" }))
+                  setMapDraft((draft) => ({ ...draft, basemap: e.target.value as BasemapMode }))
                 }
               >
-                <option value="tianditu">天地图（默认）</option>
+                <option value="tianditu_vec">天地图 · 矢量（默认）</option>
+                <option value="tianditu_img">天地图 · 影像</option>
                 <option value="none">无底图（纯矢量工作区）</option>
               </select>
               <div className="dialog-hint">
                 天地图瓦片为 EPSG:3857 网络服务；切换底图后地图立即刷新，矢量图层仍按各自坐标系转换显示。
               </div>
+            </div>
+
+            <div className="dialog-field">
+              <label>注记图层</label>
+              <label className="dialog-checkbox">
+                <input
+                  type="checkbox"
+                  checked={mapDraft.annotations !== false}
+                  disabled={mapDraft.basemap === "none"}
+                  onChange={(e) => setMapDraft((draft) => ({ ...draft, annotations: e.target.checked }))}
+                />
+                叠加天地图注记（矢量底图配 cva、影像底图配 cia）
+              </label>
+              <div className="dialog-hint">仅在天地图底图下生效；关闭后仅显示底图瓦片。</div>
             </div>
 
             <div className="dialog-field">

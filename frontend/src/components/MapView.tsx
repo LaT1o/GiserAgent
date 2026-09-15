@@ -3,7 +3,7 @@
  *
  * 逻辑参照已验证的 OpenLayers 实践（村庄规划动态维护项目 MapView）：
  * - 无底图矢量工作区（中性底色），controls 精简
- * - 可选天地图底图（EPSG:3857 瓦片服务，vec 底图 + cva 注记两层）
+ * - 可选天地图底图（EPSG:3857 瓦片服务，矢量/影像底图 + 可选注记层）
  * - VectorSource + GeoJSON.readFeatures，按 loadKey 增量刷新
  * - 单击选中要素 → 回调属性（供属性表与信息面板展示）
  * - ResizeObserver / visibilitychange 强制 updateSize（flex 布局内尺寸变化不触发 window resize）
@@ -26,6 +26,7 @@ import { Select } from "ol/interaction";
 import { click } from "ol/events/condition";
 import type { ProjectionLike } from "ol/proj";
 import { ensureProjection } from "../map/crs";
+import type { BasemapMode } from "../types";
 
 /** 地图图层数据（已加载 GeoJSON 的图层） */
 export interface MapLayerData {
@@ -64,8 +65,10 @@ interface Props {
   layers: MapLayerData[];
   /** 视图坐标系（项目显示坐标系或首个图层坐标系） */
   viewCrs: string;
-  /** 底图模式：天地图需要密钥；无密钥时保持矢量工作区可用 */
-  basemap: "tianditu" | "none";
+  /** 底图模式：天地图矢量/影像需要密钥；无密钥时保持矢量工作区可用 */
+  basemap: BasemapMode;
+  /** 天地图注记图层开关（仅天地图底图时有意义） */
+  annotations: boolean;
   tiandituToken?: string;
   onFeatureSelect: (selection: MapFeatureSelection | null) => void;
   /** 底图状态提示（缺少密钥/加载失败） */
@@ -117,9 +120,9 @@ function styleSet(color: string) {
   };
 }
 
-/** 天地图瓦片 URL（WMTS 的 XYZ 兼容入口；vec=底图，cva=注记） */
-function tiandituUrl(kind: "vec_w" | "cva_w", token: string): string {
-  const layer = kind === "vec_w" ? "vec" : "cva";
+/** 天地图瓦片 URL（WMTS 的 XYZ 兼容入口；vec=矢量底图，img=影像底图，cva/cia=对应注记） */
+function tiandituUrl(kind: "vec_w" | "cva_w" | "img_w" | "cia_w", token: string): string {
+  const layer = { vec_w: "vec", cva_w: "cva", img_w: "img", cia_w: "cia" }[kind];
   return (
     `https://t{0-7}.tianditu.gov.cn/${kind}/wmts?SERVICE=WMTS&REQUEST=GetTile` +
     `&VERSION=1.0.0&LAYER=${layer}&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles` +
@@ -141,6 +144,7 @@ export default function MapView({
   layers,
   viewCrs,
   basemap,
+  annotations,
   tiandituToken,
   onFeatureSelect,
   onBasemapNotice,
@@ -236,7 +240,11 @@ export default function MapView({
           ]
         : ext;
     }
-    if (extent) map.getView().fit(extent, { padding: [40, 40, 40, 40], maxZoom: 18 });
+    if (extent) {
+      // 容器布局可能晚于本 effect（三栏刚展开/首次挂载），ol 缓存的 size 未就绪会让 fit 静默失效
+      map.updateSize();
+      map.getView().fit(extent, { padding: [40, 40, 40, 40], maxZoom: 18 });
+    }
   };
 
   const zoomBy = (delta: number) => {
@@ -365,6 +373,7 @@ export default function MapView({
     if (viewCrsRef.current === viewCrs) return;
     if (!ensureProjection(viewCrs)) return;
     viewCrsRef.current = viewCrs;
+    const hadLayers = entriesRef.current.size > 0;
     map.setView(
       new View({
         projection: viewCrs as ProjectionLike,
@@ -376,9 +385,12 @@ export default function MapView({
     for (const entry of entriesRef.current.values()) {
       entry.loadedKey = "";
     }
+    // 重读由同步 effect 完成（同一提交内晚于本 effect）；延后一拍再定位，
+    // 否则视图停留在默认全球视野、数据不在画面内（图层数据已存在时不会触发 appeared 定位）
+    if (hadLayers) setTimeout(() => zoomToExtent(), 0);
   }, [viewCrs]);
 
-  // 底图切换：天地图两层插到最底部；无密钥/无底图时移除并提示
+  // 底图切换：天地图（矢量/影像 + 可选注记）插到最底部；无密钥/无底图时移除并提示
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -389,7 +401,7 @@ export default function MapView({
       layer.getSource()?.clear();
     }
     baseLayersRef.current = [];
-    if (basemap !== "tianditu") {
+    if (basemap === "none") {
       noticeCbRef.current?.(null);
       return;
     }
@@ -399,15 +411,18 @@ export default function MapView({
       return;
     }
     noticeCbRef.current?.(null);
+    const baseKind: "vec_w" | "img_w" = basemap === "tianditu_img" ? "img_w" : "vec_w";
+    const annoKind: "cva_w" | "cia_w" = basemap === "tianditu_img" ? "cia_w" : "cva_w";
+    const kinds: Array<"vec_w" | "cva_w" | "img_w" | "cia_w"> = annotations ? [baseKind, annoKind] : [baseKind];
     const created: TileLayer<XYZ>[] = [];
-    for (const kind of ["vec_w", "cva_w"] as const) {
+    for (const kind of kinds) {
       const layer = new TileLayer({
         source: new XYZ({
           url: tiandituUrl(kind, token),
           crossOrigin: "anonymous",
           attributions: "天地图",
         }),
-        properties: { title: kind === "vec_w" ? "天地图底图" : "天地图注记" },
+        properties: { title: kind === baseKind ? (basemap === "tianditu_img" ? "天地图影像" : "天地图底图") : "天地图注记" },
       });
       const source = layer.getSource();
       source?.on("tileloaderror", () => {
@@ -418,7 +433,7 @@ export default function MapView({
       created.push(layer);
     }
     baseLayersRef.current = created;
-  }, [basemap, tiandituToken]);
+  }, [basemap, annotations, tiandituToken]);
 
   // 图层同步：新增/移除/显隐/数据版本变化
   useEffect(() => {
@@ -432,8 +447,11 @@ export default function MapView({
       }
     }
     const appeared: string[] = [];
+    /** 本轮真正建到地图上的图层（geojson 未到的轮次不收录，否则等数据到达时「新出现」判定失效，首次定位不触发） */
+    const tracked = new Set<string>();
     for (const item of layers) {
       if (!item.geojson) continue;
+      tracked.add(item.id);
       let entry = entriesRef.current.get(item.id);
       if (!entry) {
         const source = new VectorSource();
@@ -472,7 +490,7 @@ export default function MapView({
       }
       entry.layer.setVisible(item.visible);
     }
-    prevLayerIdsRef.current = new Set(layers.map((l) => l.id));
+    prevLayerIdsRef.current = tracked;
     if (appeared.length) zoomToExtent(appeared);
     // styleFor/zoomToExtent 每次渲染重建，语义稳定（仅依赖 ref），不入依赖
     // eslint-disable-next-line react-hooks/exhaustive-deps

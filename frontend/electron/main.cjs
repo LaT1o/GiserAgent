@@ -352,6 +352,8 @@ async function createWindow(url) {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
+      // 托盘常驻 + 后台窗口不节流渲染/定时器（否则窗口被遮挡时 OpenLayers 等动画帧暂停）
+      backgroundThrottling: false,
     },
   });
 

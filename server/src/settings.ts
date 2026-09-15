@@ -24,8 +24,10 @@ export interface CompactionSettings {
 }
 
 export interface MapSettings {
-  /** 默认底图；未配置密钥时前端显示非阻塞提示并保持矢量图层可用 */
-  basemap: "tianditu" | "none";
+  /** 默认底图：天地图矢量 / 天地图影像 / 无底图；未配置密钥时前端显示非阻塞提示并保持矢量图层可用 */
+  basemap: "tianditu_vec" | "tianditu_img" | "none";
+  /** 天地图注记图层（矢量 cva_w / 影像 cia_w）；缺省视为开启 */
+  annotations?: boolean;
   /** 天地图服务密钥，仅保存在本机 workspace/settings.json */
   tiandituToken?: string;
 }
@@ -53,7 +55,8 @@ export const DEFAULT_COMPACTION_SETTINGS: CompactionSettings = {
 };
 
 export const DEFAULT_MAP_SETTINGS: MapSettings = {
-  basemap: "tianditu",
+  basemap: "tianditu_vec",
+  annotations: true,
 };
 
 const PERCENT_BOUNDS = { min: 1, max: 50 };
@@ -105,7 +108,12 @@ export function sanitizeSettings(raw: unknown): AppSettings {
   }
   const map = input.map as Record<string, unknown> | undefined;
   if (map && typeof map === "object") {
-    if (map.basemap === "tianditu" || map.basemap === "none") result.map.basemap = map.basemap;
+    // 旧值 "tianditu"（0.1.3 及以前）归一化为矢量模式
+    if (map.basemap === "tianditu") result.map.basemap = "tianditu_vec";
+    else if (map.basemap === "tianditu_vec" || map.basemap === "tianditu_img" || map.basemap === "none") {
+      result.map.basemap = map.basemap;
+    }
+    if (typeof map.annotations === "boolean") result.map.annotations = map.annotations;
     if (typeof map.tiandituToken === "string") {
       const token = map.tiandituToken.trim().slice(0, 512);
       if (token) result.map.tiandituToken = token;

@@ -14,7 +14,7 @@ import {
   fetchProjectMapLayers,
   updateProjectMapLayer,
 } from "../api/client";
-import type { MapLayerInfo } from "../types";
+import type { BasemapMode, MapLayerInfo } from "../types";
 import type { MapApi, MapFeatureSelection, MapLayerData } from "../components/MapView";
 import { pickViewCrs } from "./crs";
 
@@ -60,7 +60,7 @@ function emptyContext(): MapContext {
 export function useMapWorkspace(
   context: MapContext | null,
   revision = 0,
-  basemap: "tianditu" | "none" = "tianditu"
+  basemap: BasemapMode = "tianditu_vec"
 ): MapWorkspace {
   const [layers, setLayers] = useState<MapLayerInfo[]>([]);
   const [data, setData] = useState<Record<string, Record<string, unknown>>>({});
