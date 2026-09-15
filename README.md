@@ -6,7 +6,7 @@
 frontend（React + Electron）──HTTP/SSE──▶ server（Fastify API）──▶ Pi SDK（进程内）──▶ LLM
 ```
 
-## 功能特性
+## 功能特性（基本的agent功能+gis数据处理适配）
 
 ### Agent 对话
 
@@ -27,12 +27,12 @@ frontend（React + Electron）──HTTP/SSE──▶ server（Fastify API）─
 
 ### GIS 三族工具
 
-| 工具族 | 审批 | 定位 |
-|---|---|---|
-| `opengis_*`（6 个） | 免审批 | 结构化数据加工：元信息 / schema 对齐 / 格式互转 / 重投影 / 矢量裁剪 / GDB 别名。安全靠**路径硬校验**：输出只落工作区、绝不覆盖源数据（同名自动加序号） |
-| `opengis` | 需审批 | 便携 Python 逃生舱：任意开源 GIS 代码，内置完整开源 GIS 栈 |
-| `arcgis` | 需审批 | ArcGIS Pro 联动：本机 arcgispro-py3 解释器自动定位（环境变量 → 注册表 → 默认路径），执行 arcpy 并自带 12 函数工具库（擦除 / 椭球面积 / GDB 批量导入导出 / 渔网 / 线分割等） |
-| `map_*`（5 个） | 免审批 | 前端地图图层增删改查，产出只写受控 `.latio/webgis/` 目录 |
+| 工具族                | 审批   | 定位                                                                                                                                                                          |
+| --------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `opengis_*`（6 个） | 免审批 | 结构化数据加工：元信息 / schema 对齐 / 格式互转 / 重投影 / 矢量裁剪 / GDB 别名。安全靠**路径硬校验**：输出只落工作区、绝不覆盖源数据（同名自动加序号）                  |
+| `opengis`           | 需审批 | 便携 Python 逃生舱：任意开源 GIS 代码，内置完整开源 GIS 栈                                                                                                                    |
+| `arcgis`            | 需审批 | ArcGIS Pro 联动：本机 arcgispro-py3 解释器自动定位（环境变量 → 注册表 → 默认路径），执行 arcpy 并自带 12 函数工具库（擦除 / 椭球面积 / GDB 批量导入导出 / 渔网 / 线分割等） |
+| `map_*`（5 个）     | 免审批 | 前端地图图层增删改查，产出只写受控`.latio/webgis/` 目录                                                                                                                     |
 
 另有 `ask_user` / `submit_plan` / `todo` 三个交互辅助工具（免审批）。完整清单见下文「Agent 工具一览」。
 
@@ -60,16 +60,16 @@ frontend（React + Electron）──HTTP/SSE──▶ server（Fastify API）─
 
 ## 快速开始
 
-> **版本状态**：源码已迭代到 **0.1.3（补丁二十四）**，尚未重新打包——**最新可用安装包仍为 0.1.2**。
+> **版本状态**：当前发布版本 **0.1.3（补丁二十四）**，安装包见 [Releases](https://github.com/LaT1o/GiserAgent/releases)；源码即该版本，本地构建入口见下文「打包」。
 
 ### 安装包（免配置环境）
 
 双击安装包或免安装目录中的 `GiserAgent.exe` 即可启动，无需单独安装 Node.js 和 Python。首次打开后在「设置 → 模型提供商」中配置网关与 API Key（未配置不会阻止应用启动）。
 
-历史产物按版本归档在 `release/0.1.2/` 下：
+历史产物按版本归档在 `release/<版本号>/` 下（最新为 0.1.3）：
 
-- `release/0.1.2/GiserAgent Setup 0.1.2.exe`：双击安装，使用桌面或开始菜单快捷方式启动。
-- `release/0.1.2/win-unpacked/GiserAgent.exe`：双击运行；移动时必须复制整个 `win-unpacked` 文件夹。
+- `release/0.1.3/GiserAgent Setup 0.1.3.exe`：双击安装，使用桌面或开始菜单快捷方式启动。
+- `release/0.1.3/win-unpacked/GiserAgent.exe`：双击运行；移动时必须复制整个 `win-unpacked` 文件夹。
 
 安装包包含 Electron 壳、后端（`resources/server/`）、前端静态资源与便携 Python 运行时（含 GIS 库栈）。首次打开无需 `.env`，也**没有环境变量默认提供商**：一切在界面配置（密钥写入应用目录的 `resources/server/.pi/auth.json`）；安装包内置空 providers 模板（打包时断言零提供商），不会带入开发机配置。打包态数据位于 `resources/workspace/`，升级前应保留。启动日志位于 Electron 用户数据目录 `logs/`，无需命令行启动即可查看。
 
@@ -127,19 +127,19 @@ node release/pack.mjs     # 仓库根目录执行；产物输出到 release/<版
 
 ### 环境变量（server/.env，均可选）
 
-| 变量 | 默认值 | 说明 |
-|---|---|---|
-| `GISER_PYTHON` | `runtime/python/python.exe` | 便携 Python 解释器；缺失时报错并提示重建 |
-| `GISER_ARCGIS_PYTHON` | 注册表自动定位 | arcgis 工具的解释器（arcgispro-py3；默认读 `HKLM\SOFTWARE\ESRI\ArcGISPro` 并回退默认安装路径，找不到时执行报中文提示） |
-| `GISER_WORKSPACE_DIR` | 项目根 `workspace/` | 可选的独立数据目录（不迁移已有工作区，用于隔离运行与验证） |
-| `AGENT_TOOLS` | 内置 8 项 + `opengis` + `arcgis` + `map_*`（5 个）+ `opengis_*`（6 个）+ `todo` + `ask_user` | Agent 工具白名单（逗号分隔；`submit_plan` 另由 PLAN_ONLY_TOOLS 编排） |
-| `GISER_PLAN_TOOLS` | `read,ls,grep,find,bash,todo,ask_user` | Plan 模式允许的工具子集 |
-| `GISER_APPROVAL_TOOLS` | `bash,powershell,opengis,arcgis` | 执行前需人工确认的工具 |
-| `GISER_APPROVAL_TIMEOUT_MS` | `300000` | 审批超时（毫秒），超时视为拒绝 |
-| `GISER_QUESTION_TIMEOUT_MS` | `300000` | ask_user 提问等待超时（毫秒），超时把「用户未回答」交回模型（不视为拒绝） |
-| `PORT` | `3001` | API 端口 |
-| `GISER_HOST` | `0.0.0.0` | 监听地址（局域网/穿透访问同一前端）；仅本机使用可设 `127.0.0.1` |
-| `GISER_SERVE_DIST` | 未设 | `=1` 时 tsx 源码形态（`npm run dev`）也托管 `frontend/dist`；bundle 形态始终托管，不受此项影响 |
+| 变量                          | 默认值                                                                                                  | 说明                                                                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `GISER_PYTHON`              | `runtime/python/python.exe`                                                                           | 便携 Python 解释器；缺失时报错并提示重建                                                                                |
+| `GISER_ARCGIS_PYTHON`       | 注册表自动定位                                                                                          | arcgis 工具的解释器（arcgispro-py3；默认读`HKLM\SOFTWARE\ESRI\ArcGISPro` 并回退默认安装路径，找不到时执行报中文提示） |
+| `GISER_WORKSPACE_DIR`       | 项目根`workspace/`                                                                                    | 可选的独立数据目录（不迁移已有工作区，用于隔离运行与验证）                                                              |
+| `AGENT_TOOLS`               | 内置 8 项 +`opengis` + `arcgis` + `map_*`（5 个）+ `opengis_*`（6 个）+ `todo` + `ask_user` | Agent 工具白名单（逗号分隔；`submit_plan` 另由 PLAN_ONLY_TOOLS 编排）                                                 |
+| `GISER_PLAN_TOOLS`          | `read,ls,grep,find,bash,todo,ask_user`                                                                | Plan 模式允许的工具子集                                                                                                 |
+| `GISER_APPROVAL_TOOLS`      | `bash,powershell,opengis,arcgis`                                                                      | 执行前需人工确认的工具                                                                                                  |
+| `GISER_APPROVAL_TIMEOUT_MS` | `300000`                                                                                              | 审批超时（毫秒），超时视为拒绝                                                                                          |
+| `GISER_QUESTION_TIMEOUT_MS` | `300000`                                                                                              | ask_user 提问等待超时（毫秒），超时把「用户未回答」交回模型（不视为拒绝）                                               |
+| `PORT`                      | `3001`                                                                                                | API 端口                                                                                                                |
+| `GISER_HOST`                | `0.0.0.0`                                                                                             | 监听地址（局域网/穿透访问同一前端）；仅本机使用可设`127.0.0.1`                                                        |
+| `GISER_SERVE_DIST`          | 未设                                                                                                    | `=1` 时 tsx 源码形态（`npm run dev`）也托管 `frontend/dist`；bundle 形态始终托管，不受此项影响                    |
 
 > `server/.pi/models.json` 是**本地个人配置**（网关渠道定义，不入库）；首次启动自动从 `models.default.json` 复制生成。密钥只在 `auth.json`（gitignore）。
 
@@ -165,55 +165,55 @@ node release/pack.mjs     # 仓库根目录执行；产物输出到 release/<版
 
 ## REST API
 
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | `/api/sessions` | 创建会话，可选 body `{ projectId }` 或 `{ projectPath }` 绑定项目目录 → 201 |
-| GET | `/api/sessions` | 会话列表；`?trash=1` 返回回收站（软删除）会话 |
-| GET | `/api/sessions/:id` | 会话详情 |
-| PATCH | `/api/sessions/:id` | 重命名 / 置顶 `{ title?, pinned? }`（至少其一） |
-| DELETE | `/api/sessions/:id` | 软删除（回收站）；`?purge=1` 彻底删除目录 |
-| POST | `/api/sessions/:id/restore` | 从回收站恢复 |
-| POST | `/api/sessions/reorder` | 手动排序 `{ orderedIds }` |
-| POST | `/api/sessions/trash/clear` | 清空回收站（单个失败不中断） |
-| POST | `/api/sessions/:id/mode` | 切换模式 `{ mode: "plan" \| "act" }` |
-| POST | `/api/sessions/:id/permissions` | 更新权限 `{ permissions: { read, write, bash, approval, web, mcp } }` |
-| GET | `/api/sessions/:id/history` | 事件历史回放，`?after=<seq>` 增量 |
-| POST | `/api/sessions/:id/messages` | 发消息 `{ text, images? }`（图片 base64 数组；`/` 开头按命令展开）→ 202 返回 `{ seq }` |
-| POST | `/api/sessions/:id/edit-message` | 编辑历史消息并原地重发 `{ seq, text }` → 202 |
-| POST | `/api/sessions/:id/cancel` | 取消当前执行 → 202 |
-| POST | `/api/sessions/:id/approval` | 回复审批 `{ request_id, approved }` → 202 |
-| POST | `/api/sessions/:id/question` | 回复 ask_user 提问 `{ request_id, answers }` 或 `{ request_id, cancelled: true }` → 202（幂等） |
-| POST | `/api/sessions/:id/model` | 切换会话模型 `{ providerId, modelId }` |
-| POST | `/api/sessions/:id/thinking` | 设置思考强度 `{ level: off…max }`（按模型能力校验） |
-| GET | `/api/sessions/:id/context` | 上下文占用与五类成分分解 + 最近一轮账单 |
-| POST | `/api/sessions/:id/compact` | 手动压缩上下文 `{ instructions? }` → 202 |
-| POST | `/api/sessions/:id/branch` | 从某条用户消息分支 `{ fromSeq }` → 201 返回新会话 |
-| GET | `/api/sessions/:id/commands` | 会话可用 slash 命令（模板 + 技能） |
-| GET | `/api/sessions/:id/skills` | 会话加载的技能 |
-| GET | `/api/sessions/:id/files` | 项目文件浏览（`@` 补全），`?path=` 相对目录 |
-| GET | `/api/projects/:id/map/layers` | **项目共享**图层清单（项目不存在/路径失效 404） |
-| GET | `/api/projects/:id/map/layers/:layerId/geojson` | 项目图层 GeoJSON 原文（越界/缺失 404） |
-| POST | `/api/projects/:id/map/upload` | **拖拽上图**：multipart 上传矢量文件并登记为图层，落盘 `webgis/uploads/<时间戳>/`，绝不覆盖源数据 |
-| GET/PUT | `/api/projects/:id/map/config` | 项目地图配置（displayCrs / view / layerState，原子写） |
-| PATCH | `/api/projects/:id/map/layers/:layerId` | 更新图层 `{ alias?, visible?, order? }` |
-| DELETE | `/api/projects/:id/map/layers/:layerId` | 解除图层挂载（默认保留制品）；`?purge=1` 连制品删除 |
-| POST | `/api/sessions/:id/map/upload` | 会话入口的拖拽上传（注册项目会话同样落到项目 webgis） |
-| GET | `/api/sessions/:id/map/layers` | 会话入口（兼容）：临时会话/未注册路径使用 |
-| GET | `/api/models` | 全部可用模型（含输入模态/思考档位标记） |
-| GET/PUT | `/api/settings` | 应用设置（GET 附 resolvedDefaultModel 解析结果） |
-| GET/POST | `/api/providers` | Provider 管理（密钥只落 auth.json） |
-| PUT | `/api/providers/:id` | 编辑提供商 `{ name?, baseUrl?, apiKey? }`（apiKey 仅填写时覆盖） |
-| DELETE | `/api/providers/:id` | 删除提供商（仅「运行中且使用中」的会话会阻止） |
-| POST | `/api/providers/import-models` | 导入模型到 models.json `{ providerId, models[] }` |
-| POST | `/api/providers/remove-models` | 删除提供商下指定模型 `{ providerId, modelIds[] }` |
-| POST | `/api/providers/fetch-upstream` | 探测上游模型列表 `{ baseUrl, apiKey? }` |
-| GET/POST/PATCH/DELETE | `/api/projects` | 项目实体管理 |
-| POST | `/api/projects/reorder` | 项目分组手动排序 `{ orderedIds }` |
-| GET/POST | `/api/skills` | 全局技能列表 / 删除 |
-| PUT | `/api/skills/disabled` | 启用/禁用技能 `{ name, disabled }` |
-| GET | `/api/fs/dirs` | 目录浏览（`?path=` 空=盘符列表） |
-| GET | `/api/sessions/:id/events` | SSE 事件流（25s 心跳） |
-| GET | `/api/health` | 健康检查 |
+| 方法                  | 路径                                              | 说明                                                                                                      |
+| --------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| POST                  | `/api/sessions`                                 | 创建会话，可选 body`{ projectId }` 或 `{ projectPath }` 绑定项目目录 → 201                           |
+| GET                   | `/api/sessions`                                 | 会话列表；`?trash=1` 返回回收站（软删除）会话                                                           |
+| GET                   | `/api/sessions/:id`                             | 会话详情                                                                                                  |
+| PATCH                 | `/api/sessions/:id`                             | 重命名 / 置顶`{ title?, pinned? }`（至少其一）                                                          |
+| DELETE                | `/api/sessions/:id`                             | 软删除（回收站）；`?purge=1` 彻底删除目录                                                               |
+| POST                  | `/api/sessions/:id/restore`                     | 从回收站恢复                                                                                              |
+| POST                  | `/api/sessions/reorder`                         | 手动排序`{ orderedIds }`                                                                                |
+| POST                  | `/api/sessions/trash/clear`                     | 清空回收站（单个失败不中断）                                                                              |
+| POST                  | `/api/sessions/:id/mode`                        | 切换模式`{ mode: "plan" \| "act" }`                                                                      |
+| POST                  | `/api/sessions/:id/permissions`                 | 更新权限`{ permissions: { read, write, bash, approval, web, mcp } }`                                    |
+| GET                   | `/api/sessions/:id/history`                     | 事件历史回放，`?after=<seq>` 增量                                                                       |
+| POST                  | `/api/sessions/:id/messages`                    | 发消息`{ text, images? }`（图片 base64 数组；`/` 开头按命令展开）→ 202 返回 `{ seq }`              |
+| POST                  | `/api/sessions/:id/edit-message`                | 编辑历史消息并原地重发`{ seq, text }` → 202                                                            |
+| POST                  | `/api/sessions/:id/cancel`                      | 取消当前执行 → 202                                                                                       |
+| POST                  | `/api/sessions/:id/approval`                    | 回复审批`{ request_id, approved }` → 202                                                               |
+| POST                  | `/api/sessions/:id/question`                    | 回复 ask_user 提问`{ request_id, answers }` 或 `{ request_id, cancelled: true }` → 202（幂等）       |
+| POST                  | `/api/sessions/:id/model`                       | 切换会话模型`{ providerId, modelId }`                                                                   |
+| POST                  | `/api/sessions/:id/thinking`                    | 设置思考强度`{ level: off…max }`（按模型能力校验）                                                     |
+| GET                   | `/api/sessions/:id/context`                     | 上下文占用与五类成分分解 + 最近一轮账单                                                                   |
+| POST                  | `/api/sessions/:id/compact`                     | 手动压缩上下文`{ instructions? }` → 202                                                                |
+| POST                  | `/api/sessions/:id/branch`                      | 从某条用户消息分支`{ fromSeq }` → 201 返回新会话                                                       |
+| GET                   | `/api/sessions/:id/commands`                    | 会话可用 slash 命令（模板 + 技能）                                                                        |
+| GET                   | `/api/sessions/:id/skills`                      | 会话加载的技能                                                                                            |
+| GET                   | `/api/sessions/:id/files`                       | 项目文件浏览（`@` 补全），`?path=` 相对目录                                                           |
+| GET                   | `/api/projects/:id/map/layers`                  | **项目共享**图层清单（项目不存在/路径失效 404）                                                     |
+| GET                   | `/api/projects/:id/map/layers/:layerId/geojson` | 项目图层 GeoJSON 原文（越界/缺失 404）                                                                    |
+| POST                  | `/api/projects/:id/map/upload`                  | **拖拽上图**：multipart 上传矢量文件并登记为图层，落盘 `webgis/uploads/<时间戳>/`，绝不覆盖源数据 |
+| GET/PUT               | `/api/projects/:id/map/config`                  | 项目地图配置（displayCrs / view / layerState，原子写）                                                    |
+| PATCH                 | `/api/projects/:id/map/layers/:layerId`         | 更新图层`{ alias?, visible?, order? }`                                                                  |
+| DELETE                | `/api/projects/:id/map/layers/:layerId`         | 解除图层挂载（默认保留制品）；`?purge=1` 连制品删除                                                     |
+| POST                  | `/api/sessions/:id/map/upload`                  | 会话入口的拖拽上传（注册项目会话同样落到项目 webgis）                                                     |
+| GET                   | `/api/sessions/:id/map/layers`                  | 会话入口（兼容）：临时会话/未注册路径使用                                                                 |
+| GET                   | `/api/models`                                   | 全部可用模型（含输入模态/思考档位标记）                                                                   |
+| GET/PUT               | `/api/settings`                                 | 应用设置（GET 附 resolvedDefaultModel 解析结果）                                                          |
+| GET/POST              | `/api/providers`                                | Provider 管理（密钥只落 auth.json）                                                                       |
+| PUT                   | `/api/providers/:id`                            | 编辑提供商`{ name?, baseUrl?, apiKey? }`（apiKey 仅填写时覆盖）                                         |
+| DELETE                | `/api/providers/:id`                            | 删除提供商（仅「运行中且使用中」的会话会阻止）                                                            |
+| POST                  | `/api/providers/import-models`                  | 导入模型到 models.json`{ providerId, models[] }`                                                        |
+| POST                  | `/api/providers/remove-models`                  | 删除提供商下指定模型`{ providerId, modelIds[] }`                                                        |
+| POST                  | `/api/providers/fetch-upstream`                 | 探测上游模型列表`{ baseUrl, apiKey? }`                                                                  |
+| GET/POST/PATCH/DELETE | `/api/projects`                                 | 项目实体管理                                                                                              |
+| POST                  | `/api/projects/reorder`                         | 项目分组手动排序`{ orderedIds }`                                                                        |
+| GET/POST              | `/api/skills`                                   | 全局技能列表 / 删除                                                                                       |
+| PUT                   | `/api/skills/disabled`                          | 启用/禁用技能`{ name, disabled }`                                                                       |
+| GET                   | `/api/fs/dirs`                                  | 目录浏览（`?path=` 空=盘符列表）                                                                        |
+| GET                   | `/api/sessions/:id/events`                      | SSE 事件流（25s 心跳）                                                                                    |
+| GET                   | `/api/health`                                   | 健康检查                                                                                                  |
 
 ## 目录结构
 
