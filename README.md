@@ -85,7 +85,7 @@ npm --prefix frontend install
 日常启动即两个进程（仓库根 `dev.bat` 双击等效）；**前端与后端完全分离**：
 
 ```bash
-# 后端：纯 API（tsx 源码运行，改后端代码自动热更），0.0.0.0:3001
+# 后端：纯 API（tsx 源码运行，改后端代码自动热更），0.0.0.0:13001
 npm --prefix server run dev
 
 # 前端：Electron 桌面窗口——dev 模式内嵌 vite（改前端代码即时热更），等后端就绪后加载
@@ -94,7 +94,7 @@ npm --prefix frontend run electron:dev
 
 前端**不分「Electron 版 / 浏览器版」**：Electron 加载的就是 vite（`http://localhost:5173`），浏览器打开同一地址即同一前端（vite 把 `/api` 代理到后端），两者永远同步。vite 由 Electron 主进程拉起（5173 已有外部 vite 则复用），托盘「退出」时一并结束。改后端代码 tsx 自动重启，前端 SSE（EventSource + 3 秒重连）自动恢复，窗口无需刷新。
 
-**打包形态**（`electron:start` / 安装包）没有 vite：Electron 加载 server 托管的 `frontend/dist` 构建产物（浏览器访问 `http://<主机IP>:3001`，局域网/穿透可用，API 无鉴权注意暴露风险），改前端代码需重新 `npm --prefix frontend run build` 并重启——仅用于打包前验证与免开发的日常使用。dist 托管**只在 bundle 形态生效**：tsx 源码直跑（`npm run dev`）恒为纯 API，误开 3001 不会看到旧构建页面（需要临时托管验证可设 `GISER_SERVE_DIST=1`）。
+**打包形态**（`electron:start` / 安装包）没有 vite：Electron 加载 server 托管的 `frontend/dist` 构建产物（浏览器访问 `http://<主机IP>:13001`，局域网/穿透可用，API 无鉴权注意暴露风险），改前端代码需重新 `npm --prefix frontend run build` 并重启——仅用于打包前验证与免开发的日常使用。dist 托管**只在 bundle 形态生效**：tsx 源码直跑（`npm run dev`）恒为纯 API，误开 13001 不会看到旧构建页面（需要临时托管验证可设 `GISER_SERVE_DIST=1`）。
 
 其他命令（`frontend/` 目录）：
 
@@ -137,7 +137,7 @@ node release/pack.mjs     # 仓库根目录执行；产物输出到 release/<版
 | `GISER_APPROVAL_TOOLS`      | `bash,powershell,opengis,arcgis`                                                                      | 执行前需人工确认的工具                                                                                                  |
 | `GISER_APPROVAL_TIMEOUT_MS` | `300000`                                                                                              | 审批超时（毫秒），超时视为拒绝                                                                                          |
 | `GISER_QUESTION_TIMEOUT_MS` | `300000`                                                                                              | ask_user 提问等待超时（毫秒），超时把「用户未回答」交回模型（不视为拒绝）                                               |
-| `PORT`                      | `3001`                                                                                                | API 端口                                                                                                                |
+| `PORT`                      | `13001`                                                                                                | API 端口                                                                                                                |
 | `GISER_HOST`                | `0.0.0.0`                                                                                             | 监听地址（局域网/穿透访问同一前端）；仅本机使用可设`127.0.0.1`                                                        |
 | `GISER_SERVE_DIST`          | 未设                                                                                                    | `=1` 时 tsx 源码形态（`npm run dev`）也托管 `frontend/dist`；bundle 形态始终托管，不受此项影响                    |
 

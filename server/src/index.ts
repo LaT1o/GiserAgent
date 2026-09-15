@@ -44,8 +44,12 @@ async function main(): Promise<void> {
     preservePath: true,
   });
 
-  // 健康检查（前端启动探活约定：status + app 标识）
-  app.get("/api/health", async () => ({ status: "ok", app: "GiserAgent" }));
+  // 运行形态：tsx 源码直跑（纯 API，前端走 vite）还是 bundle 构建产物（托管 frontend/dist）。
+  // health 透出给 Electron 壳：生产壳只复用 bundle 形态（source 形态加载会得到 404）
+  const runningFromSource = process.argv[1]?.endsWith(".ts") ?? false;
+
+  // 健康检查（前端启动探活约定：status + app 标识 + 运行形态）
+  app.get("/api/health", async () => ({ status: "ok", app: "GiserAgent", mode: runningFromSource ? "source" : "bundle" }));
 
   // 工具箱 inspect 工厂：拖拽上传登记时按读取基准目录构造 inspect（保持 api 层不依赖 Agent Runtime）
   const inspectFactory = (cwd: string) => async (input: { path: string; layer?: string; output: string }) => {
@@ -56,8 +60,7 @@ async function main(): Promise<void> {
 
   // 前端构建产物仅在 bundle 运行形态（build/server.mjs：electron:start / 打包安装版）托管；
   // tsx 源码直跑（npm run dev）恒为纯 API，前端走 vite 5173——避免开发期浏览器误开
-  // 3001 看到旧构建页面（需要在源码形态临时托管 dist 验证时设 GISER_SERVE_DIST=1）
-  const runningFromSource = process.argv[1]?.endsWith(".ts") ?? false;
+  // 13001 看到旧构建页面（需要在源码形态临时托管 dist 验证时设 GISER_SERVE_DIST=1）
   if (process.env.GISER_SERVE_DIST || !runningFromSource) {
     const frontendDist = resolve(PROJECT_DIR, "frontend", "dist");
     if (existsSync(frontendDist)) {

@@ -24,8 +24,8 @@ const serverProcess = require("./server-process.cjs");
 
 // ==================== 运行配置（可直接编辑的默认值；同名环境变量优先） ====================
 
-/** 起始端口（与 server 默认一致；被占用时向后排描，仅复用身份匹配的服务） */
-const BASE_PORT = Number(process.env.GISER_PORT || 3001);
+/** 起始端口（与 server 默认一致；被占用时向后排描，仅复用身份匹配的 bundle 服务） */
+const BASE_PORT = Number(process.env.GISER_PORT || 13001);
 /** 端口扫描数量：从 BASE_PORT 起连续尝试的端口个数 */
 const PORT_SCAN_COUNT = 20;
 /** 前端开发服务器地址（--dev 模式加载） */
@@ -96,7 +96,13 @@ function createSplash() {
     show: false,
   });
   // logo 由 splash.html 以相对路径 build/logo.png 加载（files 已纳入 electron/build/logo.png）
-  splashWin.loadFile(path.join(__dirname, "splash.html")).catch((error) => void failStartup(error));
+  // 失败重试一次：新解压目录首启时可能被杀软实时扫描短暂锁文件（ERR_FAILED -2）
+  const loadSplash = (attempt) =>
+    splashWin.loadFile(path.join(__dirname, "splash.html")).catch((error) => {
+      if (attempt === 0) return loadSplash(1);
+      void failStartup(error);
+    });
+  loadSplash(0);
   splashWin.once("ready-to-show", () => { if (!splashWin.isDestroyed()) splashWin.show(); });
   return splashWin;
 }
@@ -187,7 +193,7 @@ async function spawnAndWait(port) {
   }
 }
 
-/** 生产模式：先扫身份匹配的已有实例（只复用不 kill），否则在空闲端口启动自己的 */
+/** 生产模式：先扫身份匹配且为 bundle 形态的已有实例（只复用不 kill），否则在空闲端口启动自己的 */
 async function startProductionServer() {
   const scan = () =>
     serverProcess.findExistingServer({
@@ -195,21 +201,16 @@ async function startProductionServer() {
       count: PORT_SCAN_COUNT,
       healthTimeoutMs: HEALTH_TIMEOUT_MS,
     });
-  let existing = await scan();
-  // 双进程开发模式（dev.bat：外部 tsx dev server + Electron）：外部 server 可能仍在编译，
-  // GISER_WAIT_SERVER=1 时短等重扫，命中即复用，避免抢端口另起一个 bundle server
-  if (!existing && process.env.GISER_WAIT_SERVER) {
-    const deadline = Date.now() + 15000;
-    logLine("GISER_WAIT_SERVER=1：等待外部 dev server 就绪（最长 15 秒）...");
-    while (!existing && Date.now() < deadline) {
-      await sleep(1500);
-      existing = await scan();
-    }
-  }
-  if (existing) {
+  const existing = await scan();
+  // 只复用 bundle 形态（托管 dist 的服务）；dev server（tsx 纯 API）身份虽匹配但加载会得到
+  // 404，视为不可复用——跳过它并在下方端口循环里让位（绝不结束外部进程）
+  if (existing && existing.mode === "bundle") {
     serverOwned = false;
     logLine(`复用已有 GiserAgent 服务: 端口 ${existing.port}`);
     return `http://127.0.0.1:${existing.port}`;
+  }
+  if (existing) {
+    logLine(`端口 ${existing.port} 是 GiserAgent 开发服务（source 形态，不托管前端），不复用`);
   }
 
   let attempts = 0;

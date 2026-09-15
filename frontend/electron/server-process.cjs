@@ -44,30 +44,33 @@ function probePortOpen(port, timeoutMs = 800) {
 
 /**
  * 单次健康检查（带超时）。
- * 返回 { reachable, identity }：
+ * 返回 { reachable, identity, mode }：
  * - reachable：该端口有 HTTP 响应；
- * - identity：响应体为 { status: "ok", app: "GiserAgent" }（额外字段兼容）。
+ * - identity：响应体为 { status: "ok", app: "GiserAgent" }（额外字段兼容）；
+ * - mode：服务的运行形态（"source"=tsx 源码纯 API / "bundle"=构建产物托管前端），
+ *   旧版本服务无该字段时按 "bundle" 对待（保持向后兼容）。
  */
 async function fetchHealth(port, timeoutMs) {
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/health`, {
       signal: AbortSignal.timeout(timeoutMs),
     });
-    if (!res.ok) return { reachable: true, identity: false };
+    if (!res.ok) return { reachable: true, identity: false, mode: null };
     const body = await res.json().catch(() => null);
     const identity = !!body && body.status === "ok" && body.app === HEALTH_APP_ID;
-    return { reachable: true, identity };
+    const mode = identity ? (body.mode === "source" ? "source" : "bundle") : null;
+    return { reachable: true, identity, mode };
   } catch {
-    return { reachable: false, identity: false };
+    return { reachable: false, identity: false, mode: null };
   }
 }
 
-/** 扫描端口段，返回第一个通过身份校验的已有实例端口；没有则返回 null */
+/** 扫描端口段，返回第一个通过身份校验的已有实例 { port, mode }；没有则返回 null */
 async function findExistingServer({ basePort, count, healthTimeoutMs }) {
   for (let port = basePort; port < basePort + count; port++) {
     if (!(await probePortOpen(port))) continue;
-    const { identity } = await fetchHealth(port, healthTimeoutMs);
-    if (identity) return { port };
+    const { identity, mode } = await fetchHealth(port, healthTimeoutMs);
+    if (identity) return { port, mode };
   }
   return null;
 }

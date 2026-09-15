@@ -34,7 +34,7 @@ if not exist "frontend\node_modules" (
   exit /b 1
 )
 
-echo 正在启动后端（0.0.0.0:3001，tsx 源码热更）与前端桌面窗口（Electron 内嵌 vite，改前端代码即时热更）...
+echo 正在启动后端（0.0.0.0:13001，tsx 源码热更）与前端桌面窗口（Electron 内嵌 vite，改前端代码即时热更）...
 start "GiserAgent 后端 (server)" cmd /k "npm --prefix server run dev"
 start "GiserAgent 桌面窗口 (electron)" cmd /k "npm --prefix frontend run electron:dev"
 

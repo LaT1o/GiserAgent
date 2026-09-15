@@ -149,7 +149,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   }
 
   return {
-    port: env.PORT ? Number(env.PORT) : 3001,
+    port: env.PORT ? Number(env.PORT) : 13001,
     adapter: "pi",
     // 可将新数据写入独立目录；不迁移已有工作区。
     workspaceDir: env.GISER_WORKSPACE_DIR ? resolve(env.GISER_WORKSPACE_DIR) : resolve(PROJECT_DIR, "workspace"),
