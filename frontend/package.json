@@ -1,0 +1,96 @@
+{
+  "name": "giseragent-frontend",
+  "version": "0.1.3",
+  "main": "electron/main.cjs",
+  "private": true,
+  "type": "module",
+  "description": "GiserAgent 前端（React 应用 + Electron 桌面壳，端口访问与桌面窗口共用同一前端）",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "electron:dev": "electron electron/main.cjs --dev",
+    "build:server": "esbuild ../server/src/index.ts --bundle --platform=node --format=esm --packages=external --outfile=../server/build/server.mjs",
+    "electron:start": "electron electron/main.cjs",
+    "desktop": "npm run build && npm run build:server && npm run electron:start",
+    "electron:dist": "npm run build && npm run build:server && electron-builder --win nsis",
+    "pack": "node ../release/pack.mjs",
+    "smoke:desktop": "node electron/smoke.cjs"
+  },
+  "dependencies": {
+    "ol": "^10.10.0",
+    "proj4": "^2.22.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.16",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "@vitejs/plugin-react": "6.1.1",
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.28.0",
+    "typescript": "5.9.3",
+    "vite": "8.2.2"
+  },
+  "build": {
+    "appId": "com.giseragent.desktop",
+    "productName": "GiserAgent",
+    "directories": {
+      "output": "../release"
+    },
+    "asar": false,
+    "files": [
+      "electron/main.cjs",
+      "electron/server-process.cjs",
+      "electron/preload.cjs",
+      "electron/splash.html",
+      "electron/splash.css",
+      "electron/splash.js",
+      "electron/build/logo.png",
+      "package.json"
+    ],
+    "win": {
+      "icon": "electron/build/icon.ico"
+    },
+    "afterPack": "electron/after-pack.cjs",
+    "extraResources": [
+      {
+        "from": "../server",
+        "to": "server",
+        "filter": [
+          "src/**",
+          "scripts/**",
+          "python/**",
+          "build/**",
+          ".pi/prompts/**",
+          ".pi/skills/**",
+          "package.json"
+        ]
+      },
+      {
+        "from": "../server/.pi/models.default.json",
+        "to": "server/.pi/models.json"
+      },
+      {
+        "from": "dist",
+        "to": "frontend/dist"
+      },
+      {
+        "from": "../runtime",
+        "to": "runtime"
+      },
+      {
+        "from": "electron/build",
+        "to": "desktop-build",
+        "filter": [
+          "icon.ico",
+          "logo.png"
+        ]
+      }
+    ]
+  }
+}

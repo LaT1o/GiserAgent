@@ -1,0 +1,26 @@
+{
+  "name": "giseragent-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "GiserAgent Application API + Agent Adapter（Phase 0 骨架）",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "smoke:sdk": "tsx scripts/smoke-sdk.ts"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "0.85.1",
+    "@earendil-works/pi-coding-agent": "0.85.1",
+    "@fastify/multipart": "^9.2.1",
+    "@fastify/static": "8.2.0",
+    "dotenv": "17.4.2",
+    "fastify": "5.12.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3"
+  }
+}

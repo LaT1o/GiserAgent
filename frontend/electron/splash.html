@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <!-- CSP 只允许本地同源资源：样式与脚本必须是外部文件，内联（style/onclick/data:）会被拦截 -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'" />
+  <link rel="stylesheet" href="splash.css" />
+  <title>GiserAgent</title>
+</head>
+<body>
+  <div class="splash">
+    <!-- 相对路径加载 electron/build/logo.png（打包 files 已纳入；缺失时 splash.js 隐藏占位） -->
+    <img id="logo" class="logo" src="build/logo.png" alt="GiserAgent" />
+    <div class="title">GiserAgent</div>
+    <div class="status dots">正在启动服务</div>
+  </div>
+  <script src="splash.js"></script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+# 依赖
+node_modules/
+
+# 便携 Python 运行时（可按 scripts/setup-python.md 重建）
+runtime/
+
+# 环境变量（真实密钥，严禁提交）
+.env
+*.env.local
+
+# Pi 运行时状态（models.json 为本地个人配置——渠道/网关地址，不入库；
+# 首次启动由 server 从 models.default.json 复制生成；auth.json 含真实密钥，任意层级都不入库）
+**/.pi/auth.json
+**/.pi/models-store.json
+**/.pi/models.json
+
+# Python 字节码缓存
+__pycache__/
+*.pyc
+
+# 构建产物与缓存（release/ 下的打包脚本 pack.mjs 保留入库）
+dist/
+*.tsbuildinfo
+release/*
+!release/pack.mjs
+server/build/
+
+# 已废弃的 desktop 工程残留（壳已并入 frontend/electron）
+desktop/
+
+# 日志与临时输出
+logs/
+*.log
+tmp/
+
+# 编辑器
+.vscode/
+.idea/
+
+# 本地开发文档（交接/开发进度/Agent-GIS 交互契约/图标源，内部资料不入库）
+docs/
+
+# 会话运行数据（events.jsonl / meta.json / Pi 会话文件）
+workspace/sessions/
+
+# 项目内运行数据（仓库自身被注册为项目时生成的 .latio/：会话/地图/临时文件）
+.latio/
+
+# 本地应用设置（默认模型 / 压缩阈值 / 禁用技能）
+workspace/settings.json
+
+# 项目注册表（本地路径，含用户目录信息）
+workspace/projects.json
+
+# 会话产出与测试数据（可再生：Agent 输出 / make-test-data.py）
+workspace/output/
+workspace/test-data/
+
+# 默认临时项目（新建会话未指定项目时的工作目录）
+workspace/temp/
+
+# ZCode 会话计划等本地工具产物
+.zcode/
