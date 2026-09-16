@@ -361,9 +361,20 @@ function hasRelativeRedirect(segment: string): boolean {
   return !!match && !isAbsolutePathToken(match[2]);
 }
 
+/**
+ * 剥掉丢弃型重定向 token（>/dev/null、2>&1、>$null）：对审批语义无影响，
+ * 避免 shell-guard 改写出的 /dev/null 触发绝对路径否决（改写前 `2>nul` 按相对
+ * 重定向放行，改写后若被判绝对路径反而弹审批卡，行为倒退）。
+ */
+function stripDiscardRedirects(segment: string): string {
+  return segment
+    .replace(/\d?>{1,2}\s*(\/dev\/null|\$null)\b/g, " ")
+    .replace(/\d?>&\s*\d\b/g, " ");
+}
+
 /** POSIX 命令是否只读安全（plan 模式判定）：每一段都必须在只读白名单内，且不含破坏性模式与写文件参数 */
 export function isReadOnlyBashCommand(command: string): boolean {
-  const segments = splitSegments(command);
+  const segments = splitSegments(command).map(stripDiscardRedirects);
   if (!segments.length) return false;
   return segments.every(isReadOnlyBashSegment);
 }
@@ -382,7 +393,7 @@ function isReadOnlyBashSegment(segment: string): boolean {
  * 无命令替换、无全局安装、不命中硬黑名单（与 write 工具免审批特权对齐）。
  */
 export function isSafeBashCommand(command: string): boolean {
-  const segments = splitSegments(command);
+  const segments = splitSegments(command).map(stripDiscardRedirects);
   if (!segments.length) return false;
   return segments.every(
     (segment) =>
@@ -398,7 +409,7 @@ export function isSafeBashCommand(command: string): boolean {
 /** PowerShell 命令是否只读安全（plan 模式判定）：整串不含破坏性模式，且每一段为只读 cmdlet 或安全的外部命令 */
 export function isReadOnlyPowerShellCommand(command: string): boolean {
   if (POWERSHELL_DESTRUCTIVE_PATTERNS.some((p) => p.test(command))) return false;
-  const segments = splitSegments(command);
+  const segments = splitSegments(command).map(stripDiscardRedirects);
   if (!segments.length) return false;
   return segments.every(
     (segment) =>
@@ -409,7 +420,7 @@ export function isReadOnlyPowerShellCommand(command: string): boolean {
 /** PowerShell 的 Act（智能批准）判定：只读，或经 bash 回退通道获得工作区写放宽（PS 原生写 cmdlet 不放宽） */
 export function isSafePowerShellCommand(command: string): boolean {
   if (POWERSHELL_DESTRUCTIVE_PATTERNS.some((p) => p.test(command))) return false;
-  const segments = splitSegments(command);
+  const segments = splitSegments(command).map(stripDiscardRedirects);
   if (!segments.length) return false;
   return segments.every(
     (segment) =>

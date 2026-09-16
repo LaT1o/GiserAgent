@@ -92,6 +92,7 @@ import { createAskUserTool, type AskUserQuestion, type AskUserResult } from "./e
 import { createApprovalGate, type ApprovalRequest } from "./extensions/approvalGate.js";
 import { createPermissionGuard, type SessionControlState } from "./extensions/permissions.js";
 import { createPlanModeGuard } from "./extensions/planMode.js";
+import { createShellGuard, rewriteShellToolInputForDisplay } from "./extensions/shell-guard.js";
 import {
   isReadOnlyBashCommand,
   isSafeBashCommand,
@@ -176,6 +177,11 @@ const NON_PERSISTED_EVENT_TYPES = new Set(["assistant.delta", "assistant.thinkin
 
 /** 上游拒绝思考档位时的错误特征（各网关措辞不一） */
 const EFFORT_ERROR_PATTERN = /reasoning[_ ]?effort|thinking[_ ]?(level|budget)/i;
+
+/** 内置 Windows shell 环境说明：随系统提示词追加，从源头减少 cmd 风格 nul 重定向 */
+const WINDOWS_SHELL_PROMPT = `[Windows Shell 环境]
+- bash 工具实际通过 Git Bash（MSYS）执行：丢弃输出请用 >/dev/null 与 2>/dev/null，不要写 cmd 风格的 >nul / 2>nul——MSYS 会把 nul 当普通文件名，在当前目录创建真实的 nul 文件。
+- powershell 工具中丢弃输出用 >$null / 2>$null。`;
 
 /** 错误信息命中思考档位问题时追加修改入口提示 */
 function withEffortHint(message: string): string {
@@ -663,12 +669,18 @@ export class PiAdapter implements AgentAdapter {
       noExtensions: true,
       noThemes: true,
       noContextFiles: true,
-      // 全局自定义指令（设置页「全局指令」）：追加在内置系统提示词之后（SDK 原生
-      // appendSystemPrompt 机制，等价 agentDir/APPEND_SYSTEM.md 但内容存应用设置）。
-      // loader 每会话构建一次：新建/重新恢复的会话立即生效，已打开会话在重启后生效。
-      ...(this.readSettings().customInstructions?.trim()
-        ? { appendSystemPrompt: [this.readSettings().customInstructions!.trim()] }
-        : {}),
+      // 内置 Windows shell 环境说明（防模型写 cmd 风格 >nul 落盘真实文件）+
+      // 全局自定义指令（设置页「全局指令」）：一并追加在内置系统提示词之后
+      // （SDK 原生 appendSystemPrompt 机制）。loader 每会话构建一次：
+      // 新建/重新恢复的会话立即生效，已打开会话在重启后生效。
+      ...{
+        appendSystemPrompt: [
+          WINDOWS_SHELL_PROMPT,
+          ...(this.readSettings().customInstructions?.trim()
+            ? [this.readSettings().customInstructions!.trim()]
+            : []),
+        ],
+      },
       // 应用设置中禁用的技能不进入会话（新建/恢复会话均生效）
       skillsOverride: ({ skills, diagnostics }) => {
         const disabled = new Set(this.readSettings().disabledSkills ?? []);
@@ -676,6 +688,8 @@ export class PiAdapter implements AgentAdapter {
         return { skills: skills.filter((s) => !disabled.has(s.name)), diagnostics };
       },
       extensionFactories: [
+        // shell-guard 排最前：先改写命令，后续模式判定/审批判定与审批卡显示保持一致
+        createShellGuard({ cwd: meta.cwd }),
         createPlanModeGuard({ getState: () => controlState, blockedCalls }),
         createPermissionGuard({ getState: () => controlState, blockedCalls }),
         createApprovalGate({
@@ -2175,7 +2189,12 @@ export class PiAdapter implements AgentAdapter {
             type: "tool.input",
             tool,
             call_id: callId,
-            input: msg.args ?? {},
+            // shell-guard 改写在 tool_call 扩展事件内生效（执行层已用改写后命令），
+            // 但本事件在变异前发射且读原始快照——展示层再归一一次，保持与实际执行一致
+            input:
+              tool === "bash" || tool === "powershell"
+                ? rewriteShellToolInputForDisplay(tool, msg.args)
+                : (msg.args ?? {}),
           })),
         ];
       }
