@@ -1,6 +1,6 @@
 ---
 name: gis-data-toolbox
-description: 读取与加工矢量数据（尤其 File GDB）时使用。覆盖 GDB 图层清单与图层/字段别名读取、schema 与坐标系解析、属性表结构对齐（re_schema）、格式互转（GDB/SHP/GeoJSON/GPKG/CSV/Excel）、重投影（reproject）、矢量裁剪（clip）、GDB 副本的别名设置，以及把 GDB 图层登记到前端地图。当用户提到 gdb、shp、图层、字段别名、属性表结构、坐标系错位、格式转换、重投影、投影变换、裁剪、数据上图时优先使用本技能。
+description: 读取与加工矢量数据（尤其 File GDB）时使用。覆盖 GDB 图层清单与图层/字段别名读取、schema 与坐标系解析、属性表结构对齐（re_schema）、格式互转（GDB/SHP/GeoJSON/GPKG/CSV/Excel）、重投影（reproject）、矢量裁剪（clip）、几何运算（缓冲区/融合/合并）、GDB 副本的别名设置，以及把 GDB 图层登记到前端地图。当用户提到 gdb、shp、图层、字段别名、属性表结构、坐标系错位、格式转换、重投影、投影变换、裁剪、缓冲区、融合、合并、数据上图时优先使用本技能。
 ---
 
 # GIS 数据工具箱（opengis_* 与 map_* 工具族）
@@ -17,11 +17,12 @@ description: 读取与加工矢量数据（尤其 File GDB）时使用。覆盖 
 | 格式互转（GDB↔SHP/GeoJSON/GPKG，属性表→CSV/Excel） | `opengis_convert` |
 | 重投影到另一个坐标系（真坐标变换，如投影坐标→经纬度） | `opengis_reproject` |
 | 按范围图层裁剪矢量数据（行政区裁地块等） | `opengis_clip` |
+| 几何运算：缓冲区 / 融合 / 多图层合并 | `opengis_geometry` |
 | 给工作区内的 GDB 副本批量设图层/字段别名 | `opengis_set_alias` |
 | 看数据元信息 / 把矢量数据登记到前端地图 | `map_inspect` / `map_add_layer` |
 | 已登记图层的显隐、显示名、顺序 | `map_set_layer` / `map_list_layers` |
 
-六个 `opengis_*` 工具都是**免审批**的（安全约束靠路径硬校验，见下），
+七个 `opengis_*` 工具都是**免审批**的（安全约束靠路径硬校验，见下），
 只有任意 Python 执行工具 `opengis` 需要人工审批。
 
 ## 路径约定（重要）
@@ -128,6 +129,21 @@ opengis_clip(input="data/村庄规划.gdb/地块", mask="data/边界.gdb/CJXZQ",
 - 字段结构沿用输入；完全落在范围外的要素被移除，返回 `features_before` / `feature_count`；
 - 输出与输入、mask 相同都会被拒绝（不覆盖任何源数据）。
 
+### 6a. 几何运算（opengis_geometry，operation 路由）
+
+```
+opengis_geometry(operation="buffer", input="data/地块.shp", distance=50, output="output/地块_缓冲.shp")
+opengis_geometry(operation="dissolve", input="data/地块.shp", by=["地类"], output="output/地类融合.shp")
+opengis_geometry(operation="dissolve", input="data/地块.shp", output="output/整体边界.shp")        # 全融合单要素
+opengis_geometry(operation="merge", inputs=["data/村A地块.shp", "data/村B地块.shp"], output="output/合并.shp")
+```
+
+- **buffer 的 distance 单位随输入坐标系**：投影坐标（如 EPSG:4547）为米，经纬度为度——
+  经纬度数据先 `opengis_reproject` 到投影坐标系再缓冲；
+- **dissolve** 按 `by` 字段聚合（属性取首值），省略 `by` 全融合为单要素；
+- **merge** 纵向拼接多个**同几何类型**图层：字段取并集、缺列补空、CRS 自动对齐到
+  首个输入；几何类型不一致会拒绝（先统一几何类型再合并）。
+
 ## 安全边界（免审批的前提）
 
 - **绝不修改源数据**：所有写出动作先校验输出路径，输出与任何输入相同则直接拒绝；
@@ -136,13 +152,27 @@ opengis_clip(input="data/村庄规划.gdb/地块", mask="data/边界.gdb/CJXZQ",
 - 每次调用的返回 JSON 会回显 `inputs` / `output`，用于核对实际读写路径。
 - 要动「源 GDB 本身」（如就地改别名、修复破损库）时，先把库复制进工作区再操作。
 
-## 长尾能力
+## 长尾能力与毕业流程
 
-工具箱只有上述结构化动作。以下需求直接用 `opengis` 逃生舱写代码（需审批）：
+结构化工具只覆盖高频操作。**新几何需求按「毕业流程」走**：
 
-- 空间分析：缓冲区、叠加求交、溶解聚合、最近邻、聚类、统计汇总；
+1. **先在逃生舱验证**（需审批）：`opengis` 的 PYTHONPATH 已含工具箱，直接复用现成函数：
+
+   ```python
+   import opengis_toolbox as ot          # read_vector/write_vector/passthrough_schema 等可直接用
+   gdf = ot.read_vector("data/地块.shp")
+   # 写新几何函数，print(json.dumps(result)) 输出摘要
+   ```
+
+2. **验证稳定后毕业**：把函数加进 `opengis_toolbox.py` 的 `ACTIONS`，并在
+   `opengis_geometry` 的 `operation` 枚举扩展（参数同构的几何操作都路由到这一个工具，
+   不新建独立工具；参数形态差异大的操作才独立成新工具）。毕业即免审批。
+
+以下需求仍直接用 `opengis` 逃生舱写代码（不必毕业）：
+
+- 空间分析：叠加求交、最近邻、聚类、统计汇总等一次性需求；
 - 栅格处理：裁剪、重采样、波段运算、重投影（rasterio）；
-- 批量重命名字段等一次性脚本（矢量重投影与裁剪已覆盖，见 `opengis_reproject` / `opengis_clip`）。
+- 批量重命名字段等一次性脚本（矢量重投影、裁剪、缓冲、融合、合并已覆盖）。
 
 逃生舱同样受写黑名单约束（`.latio/`、`runtime/`、`.env` 等不可写），
 产物请写到工作区目录内，并保持「不改源数据」的原则。

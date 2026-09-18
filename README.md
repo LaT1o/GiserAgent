@@ -42,7 +42,7 @@ frontend（React + Electron）──HTTP/SSE──▶ server（Fastify API）─
 
 | 工具族                | 审批   | 定位                                                                                          |
 | --------------------- | ------ | --------------------------------------------------------------------------------------------- |
-| `opengis_*`（6 个） | 免审批 | 结构化数据加工：元信息 / schema 对齐 / 格式互转 / 重投影 / 矢量裁剪 / GDB 别名；输出只落工作区、绝不覆盖源数据 |
+| `opengis_*`（7 个） | 免审批 | 结构化数据加工：元信息 / schema 对齐 / 格式互转 / 重投影 / 矢量裁剪 / 几何运算（缓冲·融合·合并）/ GDB 别名；输出只落工作区、绝不覆盖源数据 |
 | `opengis`           | 需审批 | 便携 Python 逃生舱：任意开源 GIS 代码                                                        |
 | `arcgis`            | 需审批 | ArcGIS Pro 联动：自动定位 arcgispro-py3，执行 arcpy 并自带 12 函数工具库                     |
 | `map_*`（5 个）     | 免审批 | 前端地图图层增删改查，产出只写受控 `.latio/webgis/` 目录                                      |
@@ -144,7 +144,7 @@ node release/pack.mjs     # 仓库根目录执行；产物输出到 release/<版
 | `GISER_PYTHON`              | `runtime/python/python.exe`                                                                           | 便携 Python 解释器；缺失时报错并提示重建                                                                                |
 | `GISER_ARCGIS_PYTHON`       | 注册表自动定位                                                                                          | arcgis 工具的解释器（arcgispro-py3；默认读`HKLM\SOFTWARE\ESRI\ArcGISPro` 并回退默认安装路径，找不到时执行报中文提示） |
 | `GISER_WORKSPACE_DIR`       | 项目根`workspace/`                                                                                    | 可选的独立数据目录（不迁移已有工作区，用于隔离运行与验证）                                                              |
-| `AGENT_TOOLS`               | 内置 8 项 +`opengis` + `arcgis` + `map_*`（5 个）+ `opengis_*`（6 个）+ `todo` + `ask_user` | Agent 工具白名单（逗号分隔；`submit_plan` 另由 PLAN_ONLY_TOOLS 编排）                                                 |
+| `AGENT_TOOLS`               | 内置 8 项 +`opengis` + `arcgis` + `map_*`（5 个）+ `opengis_*`（7 个）+ `todo` + `ask_user` | Agent 工具白名单（逗号分隔；`submit_plan` 另由 PLAN_ONLY_TOOLS 编排）                                                 |
 | `GISER_PLAN_TOOLS`          | `read,ls,grep,find,bash,todo,ask_user`                                                                | Plan 模式允许的工具子集                                                                                                 |
 | `GISER_APPROVAL_TOOLS`      | `bash,powershell,opengis,arcgis`                                                                      | 执行前需人工确认的工具                                                                                                  |
 | `GISER_APPROVAL_TIMEOUT_MS` | `300000`                                                                                              | 审批超时（毫秒），超时视为拒绝                                                                                          |
@@ -159,13 +159,14 @@ node release/pack.mjs     # 仓库根目录执行；产物输出到 release/<版
 
 内置：`read / write / edit / ls / grep / find / bash / powershell`（读写限定会话绑定的项目/工作区，黑名单永生效）。进程内注册：
 
-- `opengis`：便携 Python 逃生舱——任意开源 GIS 代码，**需审批**；`code` 或 `script`+`args` 二选一、`timeout_seconds`（默认 180、上限 600）；返回 `{ success, exit_code, stdout, stderr, duration, timed_out }`。
+- `opengis`：便携 Python 逃生舱——任意开源 GIS 代码，**需审批**；PYTHONPATH 已含 `opengis_toolbox` 函数库可直接 import；`code` 或 `script`+`args` 二选一、`timeout_seconds`（默认 180、上限 600）；返回 `{ success, exit_code, stdout, stderr, duration, timed_out }`。
 - `arcgis`：ArcGIS Pro 逃生舱——本机 arcgispro-py3 执行任意 arcpy 代码，**需审批**；参数与返回同 `opengis`。`PYTHONPATH` 已含 `arcgis_toolbox` 函数库（12 个函数直接 `import`），用法见技能 `arcgis-pro`；未装 Pro 时执行报中文提示。plan 模式禁用。
 - `opengis_describe`：矢量数据元信息——GDB 库列出全部图层（含别名），`` `库.gdb/图层名` `` 或 shp/geojson 返回 driver/几何/要素数/坐标系/范围/字段（含中文字段别名）。免审批。
 - `opengis_re_schema`：按目标 schema 对齐属性表（`schema` 直接给出或 `schema_from` 指向参考图层），多删缺补、类型对齐，输出新文件。免审批。
 - `opengis_convert`：格式互转（`.shp`/`.geojson`/`.gpkg`/`` `.gdb/图层名` ``/`.csv`/`.xlsx` 由扩展名决定），`repair=true` 顺带多部件拆分与几何修复；`crs` 参数只**改坐标系标注**（真变换用 reproject）。免审批。
 - `opengis_reproject`：重投影（`crs` 如 `EPSG:4326`，**真坐标变换**）；输入须已有坐标系标注，返回 `source_epsg`/`epsg`/新坐标系 `bounds`。免审批。
 - `opengis_clip`：按范围图层（`mask`，任意矢量数据）裁剪输入；mask 与输入 CRS 不同时自动对齐，字段沿用输入结构，完全落在范围外的要素被移除，不拆多部件。免审批。
+- `opengis_geometry`：几何运算族（`operation` 路由）——buffer（缓冲区，距离单位随输入坐标系）/ dissolve（按字段聚合融合或全融合）/ merge（多图层纵向合并，字段并集、CRS 对齐到首输入）；参数同构的新几何操作持续毕业到此枚举。免审批。
 - `opengis_set_alias`：为**工作区内**的 GDB 副本批量设置图层/字段别名，默认同次改写清理 Length/Precision/Scale（`fix=false` 关闭；需便携运行时装有 GDAL，缺失时返回明确提示）。免审批。
 - `map_inspect`：矢量/栅格元信息 + 矢量转 GeoJSON 登记为地图图层（`path` 支持 `` `库.gdb/图层名` `` 与 `.kml`）。免审批。
 - `map_list_layers` / `map_add_layer` / `map_set_layer` / `map_remove_layer`：项目地图图层清单 / 登记（与 map_inspect 共用实现）/ 调整显隐·别名·顺序 / 解除挂载（默认保留制品，`purge_artifact=true` 才删除文件）。免审批。

@@ -327,6 +327,18 @@ def _fiona_type(kind):
     return "str"
 
 
+def _fiona_type_of_dtype(dtype):
+    """pandas dtype → fiona schema 类型名（merge 字段并集扩 schema 用）。"""
+    text = str(dtype)
+    if text.startswith("int"):
+        return "int"
+    if text.startswith("float"):
+        return "float"
+    if "datetime" in text:
+        return "datetime"
+    return "str"
+
+
 def _is_gdb(schema):
     return str(schema.get("driver") or "").lower() == "openfilegdb"
 
@@ -1155,6 +1167,203 @@ def action_clip(input=None, mask=None, output=None, layer=None):
     }
 
 
+def _promote_schema_geometry(schema, gdf):
+    """几何运算后按实际数据升级直通 schema 的几何类型（Polygon→MultiPolygon 等）。
+
+    buffer / dissolve 常把单部件几何变成多部件；多部件数据写进单部件 schema
+    会被驱动截断，这里按首个实际几何类型升级，字段类型仍走直通不漂移。
+    """
+    if not schema or not schema.get("geometry"):
+        return schema
+    try:
+        geom_type = gdf.geometry.geom_type.dropna()
+        actual = geom_type.iloc[0] if len(geom_type) else None
+    except Exception:
+        return schema
+    if not actual or not str(actual).startswith("Multi"):
+        return schema
+    base = str(schema["geometry"])
+    if base.startswith("Multi") or base in ("Unknown", "None"):
+        return schema
+    promoted = {"Point": "MultiPoint", "LineString": "MultiLineString", "Polygon": "MultiPolygon"}.get(base)
+    if promoted:
+        schema = dict(schema)
+        schema["geometry"] = promoted
+    return schema
+
+
+def action_buffer(input=None, distance=None, output=None, layer=None):
+    """缓冲区：对输入几何做 buffer（distance 单位随输入坐标系：投影坐标为米，经纬度为度）。"""
+    if not input or distance is None or not output:
+        return {"success": False, "error": "buffer 需要 input、distance 与 output"}
+    if os.path.abspath(str(input)) == os.path.abspath(str(output)):
+        return {"success": False, "error": "输出不能与输入相同（不覆盖源数据）"}
+    try:
+        distance = float(distance)
+    except (TypeError, ValueError):
+        return {"success": False, "error": f"distance 必须是数值: {distance!r}"}
+    if not distance > 0:
+        return {"success": False, "error": f"distance 必须为正数: {distance}"}
+    try:
+        gdf = read_vector(input, layer)
+    except Exception as exc:
+        return {"success": False, "error": f"无法读取输入: {exc}"}
+    gdf = drop_artifact_fields(gdf)
+    if gdf.crs is None:
+        return {
+            "success": False,
+            "error": "输入没有坐标系标注，buffer 距离单位无法确定；"
+            "如已知正确坐标系，先用 opengis_convert 的 crs 参数修正标注。",
+        }
+    features_before = int(len(gdf))
+    gdf = sanitize_gdf(gdf, explode=False, repair=True)
+    try:
+        buffered = gdf.copy()
+        buffered.geometry = buffered.geometry.buffer(distance)
+    except Exception as exc:
+        return {"success": False, "error": f"缓冲区计算失败: {exc}"}
+    buffered = buffered[buffered.geometry.notna() & ~buffered.geometry.is_empty].reset_index(drop=True)
+    schema = _promote_schema_geometry(passthrough_schema(input, layer, buffered), buffered)
+    final_output, forced_layer = unique_output(output)
+    try:
+        write_vector(buffered, final_output, layer=forced_layer, schema=schema)
+    except Exception as exc:
+        return {"success": False, "error": f"写出失败: {exc}"}
+    return {
+        "success": True,
+        "input": str(input),
+        "output": str(final_output),
+        **({"renamed_to": str(final_output)} if str(final_output) != str(output) else {}),
+        "features_before": features_before,
+        "feature_count": int(len(buffered)),
+        "distance": distance,
+        "epsg": resolve_epsg(buffered.crs),
+        "bounds": [float(v) for v in buffered.total_bounds] if len(buffered) else None,
+        "schema": schema_of_gdf(buffered, schema),
+    }
+
+
+def action_dissolve(input=None, by=None, output=None, layer=None):
+    """融合：按 by 字段聚合（字段取首值），缺省全融合为单要素。"""
+    if not input or not output:
+        return {"success": False, "error": "dissolve 需要 input 与 output"}
+    if os.path.abspath(str(input)) == os.path.abspath(str(output)):
+        return {"success": False, "error": "输出不能与输入相同（不覆盖源数据）"}
+    if by is not None and not isinstance(by, list):
+        return {"success": False, "error": f"by 需为字段名数组（或省略表示全融合）: {by!r}"}
+    try:
+        gdf = read_vector(input, layer)
+    except Exception as exc:
+        return {"success": False, "error": f"无法读取输入: {exc}"}
+    gdf = drop_artifact_fields(gdf)
+    features_before = int(len(gdf))
+    if by:
+        columns = {str(c) for c in gdf.columns}
+        missing = [f for f in by if f not in columns]
+        if missing:
+            return {"success": False, "error": f"by 字段不存在: {', '.join(missing)}；可用字段: {', '.join(sorted(columns - {gdf.geometry.name}))}"}
+    gdf = sanitize_gdf(gdf, explode=False, repair=True)
+    try:
+        dissolved = gdf.dissolve(by=by or None, aggfunc="first")
+        # 有 by：把聚合索引恢复为普通字段；无 by：丢弃旧数值索引（reset 会平白产生 index 列）
+        dissolved = dissolved.reset_index() if by else dissolved.reset_index(drop=True)
+    except Exception as exc:
+        return {"success": False, "error": f"融合失败: {exc}"}
+    # by 列 reset 后成为普通字段；geometry 列名保持
+    dissolved = dissolved[dissolved.geometry.notna() & ~dissolved.geometry.is_empty].reset_index(drop=True)
+    schema = _promote_schema_geometry(passthrough_schema(input, layer, dissolved), dissolved)
+    final_output, forced_layer = unique_output(output)
+    try:
+        write_vector(dissolved, final_output, layer=forced_layer, schema=schema)
+    except Exception as exc:
+        return {"success": False, "error": f"写出失败: {exc}"}
+    return {
+        "success": True,
+        "input": str(input),
+        "output": str(final_output),
+        **({"renamed_to": str(final_output)} if str(final_output) != str(output) else {}),
+        "features_before": features_before,
+        "feature_count": int(len(dissolved)),
+        **({"by": by} if by else {}),
+        "epsg": resolve_epsg(dissolved.crs),
+        "bounds": [float(v) for v in dissolved.total_bounds] if len(dissolved) else None,
+        "schema": schema_of_gdf(dissolved, schema),
+    }
+
+
+def action_merge(inputs=None, output=None):
+    """合并多个图层：pd.concat 纵向拼接（字段并集，缺列补空；CRS 对齐到首个输入）。"""
+    if not inputs or not isinstance(inputs, list) or not output:
+        return {"success": False, "error": "merge 需要 inputs（路径数组）与 output"}
+    for source in inputs:
+        if os.path.abspath(str(source)) == os.path.abspath(str(output)):
+            return {"success": False, "error": "输出不能与任何输入相同（不覆盖源数据）"}
+    frames = []
+    per_input_counts = []
+    base_crs = None
+    aligned_inputs = []
+    for source in inputs:
+        try:
+            gdf = read_vector(source)
+        except Exception as exc:
+            return {"success": False, "error": f"无法读取输入 {source}: {exc}"}
+        gdf = drop_artifact_fields(gdf)
+        if gdf.crs is None:
+            return {"success": False, "error": f"输入 {source} 没有坐标系标注，无法与其他图层合并。"}
+        if base_crs is None:
+            base_crs = gdf.crs
+        elif not gdf.crs.equals(base_crs):
+            gdf = gdf.to_crs(base_crs)
+            aligned_inputs.append(str(source))
+        frames.append(gdf)
+        per_input_counts.append(int(len(gdf)))
+    geom_types = {t for frame in frames for t in frame.geometry.geom_type.dropna().unique()}
+    if len(geom_types) > 1:
+        return {
+            "success": False,
+            "error": f"输入几何类型不一致（{', '.join(sorted(geom_types))}），合并会破坏图层几何约束；请先统一几何类型。",
+        }
+    merged = pd.concat(frames, ignore_index=True)
+    merged = merged[merged.geometry.notna() & ~merged.geometry.is_empty].reset_index(drop=True)
+    # 字段并集对齐：首输入 schema 直通（同构合并类型不漂移）；首输入缺的列按其类型补空，
+    # 其他输入独有的列按实际 dtype 扩进 schema（写出端 fiona 严格校验列与 schema 一致）
+    schema = passthrough_schema(inputs[0], None, merged)
+    if schema:
+        props = dict(schema["properties"])
+        for field, spec in props.items():
+            if field not in merged.columns:
+                raw = str(spec)
+                kind = "double" if raw.startswith("float") else "integer" if raw.startswith("int") else "date" if raw.startswith("date") else "string"
+                merged[field] = default_value(kind)
+        for column in merged.columns:
+            if column == merged.geometry.name:
+                continue
+            if column not in props:
+                props[column] = _fiona_type_of_dtype(merged[column].dtype)
+        schema = {**schema, "properties": props}
+        ordered = [f for f in props if f in merged.columns]
+        rest = [c for c in merged.columns if c not in ordered and c != merged.geometry.name]
+        merged = merged[[*ordered, *rest, merged.geometry.name]]
+    schema = _promote_schema_geometry(schema, merged)
+    final_output, forced_layer = unique_output(output)
+    try:
+        write_vector(merged, final_output, layer=forced_layer, schema=schema)
+    except Exception as exc:
+        return {"success": False, "error": f"写出失败: {exc}"}
+    return {
+        "success": True,
+        "inputs": [str(s) for s in inputs],
+        "output": str(final_output),
+        **({"renamed_to": str(final_output)} if str(final_output) != str(output) else {}),
+        "per_input_counts": per_input_counts,
+        "feature_count": int(len(merged)),
+        **({"aligned_inputs": aligned_inputs} if aligned_inputs else {}),
+        "epsg": resolve_epsg(merged.crs),
+        "bounds": [float(v) for v in merged.total_bounds] if len(merged) else None,
+        "schema": schema_of_gdf(merged, schema),
+    }
+
+
 ACTIONS = {
     "inspect": action_inspect,
     "list_layers": action_list_layers,
@@ -1169,6 +1378,9 @@ ACTIONS = {
     "repair": action_repair,
     "reproject": action_reproject,
     "clip": action_clip,
+    "buffer": action_buffer,
+    "dissolve": action_dissolve,
+    "merge": action_merge,
     "set_alias": action_set_alias,
     "fix_gdb": action_fix_gdb,
 }

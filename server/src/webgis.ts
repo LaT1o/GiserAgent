@@ -41,6 +41,8 @@ export function isMapToolName(name: string): boolean {
  *  - opengis_convert：格式互转（gdb↔shp/geojson/gpkg，属性表→csv/xlsx）
  *  - opengis_reproject：矢量重投影（to_crs 真坐标变换，区别于 convert 的 crs 改标注）
  *  - opengis_clip：矢量裁剪（mask 范围裁剪，字段沿用输入，CRS 自动对齐）
+ *  - opengis_geometry：几何运算族（buffer/dissolve/merge，operation 枚举路由，
+ *    参数同构的新几何操作毕业到这里的枚举扩展）
  *  - opengis_set_alias：批量设置 GDB 图层/字段别名（需 GDAL）
  *  免审批：安全边界靠路径硬校验（输出必须落在会话绑定目录内、绝不覆盖源数据）。 */
 export const OPEN_GIS_TOOL_NAMES = [
@@ -49,6 +51,7 @@ export const OPEN_GIS_TOOL_NAMES = [
   "opengis_convert",
   "opengis_reproject",
   "opengis_clip",
+  "opengis_geometry",
   "opengis_set_alias",
 ] as const;
 

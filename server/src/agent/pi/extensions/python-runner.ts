@@ -136,13 +136,19 @@ export function toToolResult(result: PythonRunResult): AgentToolResult<unknown> 
 }
 
 /** 创建 openGIS 工具定义；pythonExecutable 为便携解释器绝对路径，cwd 为该会话的工作目录 */
-export function createOpenGisTool(pythonExecutable: string, cwd: string): ToolDefinition {
+export function createOpenGisTool(pythonExecutable: string, cwd: string, toolboxDir?: string): ToolDefinition {
+  // 保留调用方进程已有 PYTHONPATH，工具箱目录排在最前（与 arcgis 一致）；
+  // 逃生舱代码可直接 import opengis_toolbox 复用现成函数（新几何操作的「毕业」验证路径）
+  const pythonPath = toolboxDir
+    ? [toolboxDir, process.env.PYTHONPATH].filter(Boolean).join(delimiter)
+    : undefined;
   return defineTool({
     name: "opengis",
     label: "openGIS",
     description:
       "openGIS 空间分析工具：使用内置的便携 Python 运行时（独立于系统 Python，随应用分发）执行开源 GIS 栈" +
       "（geopandas / shapely / pyproj / fiona / rasterio / pandas，GDAL·GEOS·PROJ 系）完成矢量与栅格的空间读写、变换与运算。" +
+      "PYTHONPATH 已含 opengis_toolbox 函数库（describe/convert/clip/buffer 等），可直接 `import opengis_toolbox` 复用。" +
       "参数二选一：code（内联代码）或 script（脚本文件路径，相对当前工作目录）；" +
       "返回 JSON：{ success, exit_code, stdout, stderr, duration, timed_out }。",
     promptSnippet:
@@ -179,7 +185,9 @@ export function createOpenGisTool(pythonExecutable: string, cwd: string): ToolDe
         ? ["-u", "-c", code]
         : ["-u", script as string, ...(args ?? [])];
 
-      return toToolResult(await runPython(pythonExecutable, cwd, argv, timeoutSec, signal));
+      return toToolResult(
+        await runPython(pythonExecutable, cwd, argv, timeoutSec, signal, pythonPath ? { PYTHONPATH: pythonPath } : undefined)
+      );
     },
   });
 }

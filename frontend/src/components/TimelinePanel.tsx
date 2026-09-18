@@ -141,6 +141,12 @@ function summarizeToolInput(tool: string, input: unknown): string {
   if ((tool === "bash" || tool === "powershell") && typeof record.command === "string") {
     return record.command.slice(0, 120);
   }
+  if (tool === "opengis_geometry") {
+    const op = typeof record.operation === "string" ? record.operation : "?";
+    const src = typeof record.input === "string" ? record.input : Array.isArray(record.inputs) ? (record.inputs as string[]).join(" + ") : "";
+    const out = typeof record.output === "string" ? ` → ${record.output}` : "";
+    return `${op} ${src}${out}`.slice(0, 120);
+  }
   if (tool === "opengis" || tool === "arcgis" || tool === "python") {
     if (typeof record.code === "string") {
       const first = record.code.split("\n").find((l) => l.trim()) ?? "";
@@ -180,6 +186,7 @@ function formatDuration(ms?: number): string {
 /** 工具显示名（原名优先，仅个别工具名需要美化；gis_* 为改名前的历史轨迹） */
 const TOOL_LABELS: Record<string, string> = {
   opengis: "openGIS",
+  opengis_geometry: "几何操作",
   arcgis: "ArcGIS",
   map_inspect: "地图检查",
   gis_inspect: "地图检查",

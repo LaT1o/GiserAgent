@@ -365,6 +365,84 @@ export function createOpenGisClipTool(options: OpenGisToolOptions): ToolDefiniti
 }
 
 /**
+ * opengis_geometry：几何运算族（buffer / dissolve / merge，operation 枚举路由）。
+ *
+ * 参数形态同构的几何操作共享本工具：新增同构操作只需 toolbox.py 加 action 并扩
+ * 枚举（「毕业机制」：长尾先在 opengis 逃生舱用 `import opengis_toolbox` 验证，
+ * 稳定后毕业到这里，免审批、路径硬校验与其他 opengis_* 一致）；参数异构的操作
+ * （如带 mask 的 clip、带 schema 的 re_schema）仍独立成工具。
+ */
+export function createOpenGisGeometryTool(options: OpenGisToolOptions): ToolDefinition {
+  return defineTool({
+    name: "opengis_geometry",
+    label: "几何操作",
+    description:
+      "矢量几何运算：buffer（缓冲区，distance 单位随输入坐标系——投影坐标为米、经纬度为度）、" +
+      "dissolve（按 by 字段聚合融合，字段取首值；省略 by 全融合为单要素）、" +
+      "merge（多个同几何类型图层纵向合并，字段并集、CRS 自动对齐到首个输入）。" +
+      "输出写入工作区新文件，**不修改输入**；免审批。",
+    promptSnippet: "run geometry operations (buffer / dissolve / merge) on vector data",
+    parameters: Type.Object({
+      operation: Type.Union([Type.Literal("buffer"), Type.Literal("dissolve"), Type.Literal("merge")], {
+        description: "几何操作类型",
+      }),
+      input: Type.Optional(Type.String({ description: "输入数据路径（buffer / dissolve；支持 `存储.gdb/图层名`）" })),
+      inputs: Type.Optional(Type.Array(Type.String(), { description: "合并的多个图层路径（merge）" })),
+      distance: Type.Optional(Type.Number({ description: "缓冲距离（buffer 必填；单位随输入坐标系：投影坐标为米）" })),
+      by: Type.Optional(Type.Array(Type.String(), { description: "dissolve 聚合字段（省略则全融合为单要素）" })),
+      output: Type.Optional(
+        Type.String({ description: "输出路径（相对会话工作目录；缺省写到会话 output 目录且文件名自动避让）" })
+      ),
+      layer: Type.Optional(Type.String({ description: "输入图层名（路径已含图层名时可省略）" })),
+    }),
+    async execute(_toolCallId, params, signal) {
+      const state = options.getState();
+      const operation = params.operation;
+      let input = "";
+      const inputs: string[] = [];
+
+      if (operation === "merge") {
+        const raw = (params.inputs ?? []).map((s) => String(s).trim()).filter(Boolean);
+        if (raw.length < 2) throw new Error("merge 的 inputs 需要至少 2 个图层路径");
+        inputs.push(...raw.map((p) => assertReadable(p, options.cwd, state, "输入路径")));
+        input = raw[0];
+      } else {
+        const raw = String(params.input ?? "").trim();
+        if (!raw) throw new Error(`${operation} 需要提供 input（输入数据路径）`);
+        input = assertReadable(raw, options.cwd, state, "输入路径");
+      }
+      if (operation === "buffer" && (typeof params.distance !== "number" || !Number.isFinite(params.distance))) {
+        throw new Error("buffer 需要提供 distance（数值，单位随输入坐标系）");
+      }
+      const output = params.output
+        ? assertWritable(String(params.output), options.cwd, state, [input, ...inputs])
+        : defaultOutput(options, input, operation);
+
+      const entry = await runToolbox(
+        options.pythonExecutable,
+        options.cwd,
+        operation,
+        {
+          ...(operation === "merge"
+            ? { inputs }
+            : {
+                input,
+                ...(params.layer ? { layer: String(params.layer) } : {}),
+                ...(operation === "buffer" ? { distance: params.distance } : {}),
+                ...(operation === "dissolve" && params.by?.length ? { by: params.by.map(String) } : {}),
+              }),
+          output,
+        },
+        signal,
+        DATA_TIMEOUT_SECONDS
+      );
+      const payload = toolboxPayload(entry, operation);
+      return { content: text(payload), details: payload };
+    },
+  });
+}
+
+/**
  * 缺省输出：会话 output 目录下带动作与时间戳的新文件。
  * 源数据是 GDB 图层（`xxx.gdb/图层名`）时产物写进新 GDB 并沿用图层名，
  * 否则沿用输入扩展名（取不到扩展名时用 gpkg——能保留字段类型与坐标系）。
@@ -390,6 +468,7 @@ export function createOpenGisTools(options: OpenGisToolOptions): ToolDefinition[
     createOpenGisConvertTool(options),
     createOpenGisReprojectTool(options),
     createOpenGisClipTool(options),
+    createOpenGisGeometryTool(options),
     createOpenGisSetAliasTool(options),
   ];
 }

@@ -731,7 +731,7 @@ export class PiAdapter implements AgentAdapter {
       // submit_plan，之后切 plan 时 setActiveToolsByName 会静默忽略该名字
       tools: [...new Set([...this.config.agentTools, ...PLAN_ONLY_TOOLS])],
       customTools: [
-        createOpenGisTool(this.config.pythonExecutable, meta.cwd),
+        createOpenGisTool(this.config.pythonExecutable, meta.cwd, resolve(SERVER_DIR, "python")),
         // ArcGIS Pro 自带 Python（arcpy）逃生舱：探测不到安装时传 null，执行时报中文提示
         createArcGisTool(this.config.arcgisPython, meta.cwd, resolve(SERVER_DIR, "python")),
         createMapInspectTool(this.config.pythonExecutable, meta.cwd, {
