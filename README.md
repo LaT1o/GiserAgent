@@ -2,6 +2,8 @@
 
 一个面向 GIS 从业者的桌面 AI Agent 应用：内置开源 GIS Python 栈（geopandas / shapely / fiona / rasterio + GDAL 系，随应用分发，不依赖系统 Python）、可联动本机 ArcGIS Pro（arcpy），配备项目级 WebGIS 地图工作区。模型提供商全部在界面内配置（任意 OpenAI 兼容网关），密钥只落本机文件；会话数据本地落盘、可完整回放。
 
+**产品关系**：本仓库是通用桌面版，保留 Electron + 内嵌本地 Fastify + 便携 Python 的厚客户端形态，不含教育平台的课程/账号体系。通用服务端是独立仓库 **GisAgent-server**；智瑞教育平台定制版是 **GisAgent-web**（含课程、教师/学生账号、主平台 SSO 与账号课程同步）。三者代码同源分叉、互不依赖，各自独立维护。
+
 ![GisAgent Desktop 主界面](assets/screenshots/01-overview.png)
 
 > 三栏布局：会话与图层列表 ｜ 地图工作区（天地图底图 + 地块上图）｜ 对话时间线（工具执行过程 + 统计表格）。
@@ -67,7 +69,7 @@ frontend（React + Electron）──HTTP/SSE──▶ server（Fastify API）─
 ### 桌面形态
 
 - Electron **无边框一体化窗口** + **系统托盘常驻**（关窗仅隐藏）
-- 浏览器打开 `http://<主机IP>:<port>` 即同一前端（局域网可用；API 无鉴权，注意暴露风险）
+- 本机浏览器打开 `http://127.0.0.1:<port>` 即同一前端；server 默认只监听本机，确需局域网/穿透访问时显式设置 `GISER_HOST=0.0.0.0`（API 无鉴权，注意暴露风险）
 - 启动画面 + 启动失败弹窗（原因与日志位置）
 
 ## 快速开始
@@ -76,12 +78,12 @@ frontend（React + Electron）──HTTP/SSE──▶ server（Fastify API）─
 
 ### 安装包（免配置环境）
 
-双击安装包或免安装目录中的 `GisAgent Desktop.exe` 即可启动，无需单独安装 Node.js 和 Python。首次打开后在「设置 → 模型提供商」中配置网关与 API Key（未配置不会阻止应用启动）。
+双击安装包或免安装目录中的可执行文件即可启动，无需单独安装 Node.js 和 Python。首次打开后在「设置 → 模型提供商」中配置网关与 API Key（未配置不会阻止应用启动）。
 
-历史产物按版本归档在 `release/<版本号>/` 下（最新为 0.1.5）：
+历史产物按版本归档在 `release/<版本号>/` 下（最新为 0.1.5）。**注意：现有 0.1.5 产物是迁移前用旧品牌名打包的，重新打包后才会生成 GisAgent Desktop 名称。**
 
-- `release/0.1.5/GisAgent Desktop Setup 0.1.5.exe`：双击安装，使用桌面或开始菜单快捷方式启动。
-- `release/0.1.5/win-unpacked/GisAgent Desktop.exe`：双击运行；移动时必须复制整个 `win-unpacked` 文件夹。
+- `release/0.1.5/GiserAgent Setup 0.1.5.exe`：旧品牌安装包，双击安装，使用桌面或开始菜单快捷方式启动。
+- `release/0.1.5/win-unpacked/GiserAgent.exe`：旧品牌免安装程序，双击运行；移动时必须复制整个 `win-unpacked` 文件夹。
 
 安装包包含 Electron 壳、后端（`resources/server/`）、前端静态资源与便携 Python 运行时（含 GIS 库栈）。首次打开无需 `.env`，也**没有环境变量默认提供商**：一切在界面配置（密钥写入应用目录的 `resources/server/.pi/auth.json`）；安装包内置空 providers 模板（打包时断言零提供商），不会带入开发机配置。打包态数据位于 `resources/workspace/`，升级前应保留。启动日志位于 Electron 用户数据目录 `logs/`，无需命令行启动即可查看。
 
@@ -106,7 +108,7 @@ npm --prefix frontend run electron:dev
 
 前端**不分「Electron 版 / 浏览器版」**：Electron 加载的就是 vite（`http://localhost:5173`），浏览器打开同一地址即同一前端（vite 把 `/api` 代理到后端），两者永远同步。vite 由 Electron 主进程拉起（5173 已有外部 vite 则复用），托盘「退出」时一并结束。改后端代码 tsx 自动重启，前端 SSE（EventSource + 3 秒重连）自动恢复，窗口无需刷新。
 
-**打包形态**（`electron:start` / 安装包）没有 vite：Electron 加载 server 托管的 `frontend/dist` 构建产物（浏览器访问 `http://<主机IP>:13001`，局域网/穿透可用，API 无鉴权注意暴露风险），改前端代码需重新 `npm --prefix frontend run build` 并重启——仅用于打包前验证与免开发的日常使用。dist 托管**只在 bundle 形态生效**：tsx 源码直跑（`npm run dev`）恒为纯 API，误开 13001 不会看到旧构建页面（需要临时托管验证可设 `GISER_SERVE_DIST=1`）。
+**打包形态**（`electron:start` / 安装包）没有 vite：Electron 加载 server 托管的 `frontend/dist` 构建产物（本机浏览器可访问 `http://127.0.0.1:13001`；确需局域网/穿透时显式设置 `GISER_HOST=0.0.0.0`，API 无鉴权注意暴露风险），改前端代码需重新 `npm --prefix frontend run build` 并重启——仅用于打包前验证与免开发的日常使用。dist 托管**只在 bundle 形态生效**：tsx 源码直跑（`npm run dev`）恒为纯 API，误开 13001 不会看到旧构建页面（需要临时托管验证可设 `GISER_SERVE_DIST=1`）。
 
 其他命令（`frontend/` 目录）：
 
