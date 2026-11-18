@@ -49,7 +49,7 @@ async function main(): Promise<void> {
   const runningFromSource = process.argv[1]?.endsWith(".ts") ?? false;
 
   // 健康检查（前端启动探活约定：status + app 标识 + 运行形态）
-  app.get("/api/health", async () => ({ status: "ok", app: "GiserAgent", mode: runningFromSource ? "source" : "bundle" }));
+  app.get("/api/health", async () => ({ status: "ok", app: "GisAgent Desktop", mode: runningFromSource ? "source" : "bundle" }));
 
   // 工具箱 inspect 工厂：拖拽上传登记时按读取基准目录构造 inspect（保持 api 层不依赖 Agent Runtime）
   const inspectFactory = (cwd: string) => async (input: { path: string; layer?: string; output: string }) => {
@@ -76,12 +76,12 @@ async function main(): Promise<void> {
     }
   }
 
-  // 监听地址默认 0.0.0.0（便于局域网/端口映射穿透访问同一前端）；仅本机使用可设 GISER_HOST=127.0.0.1
-  // 注意：API 无鉴权，暴露到不可信网络前请自行加防火墙/反向代理规则
+  // 桌面端默认只监听本机；确实需要局域网访问时显式设置 GISER_HOST=0.0.0.0。
+  // 注意：API 无鉴权，暴露到不可信网络前请自行加防火墙/反向代理规则。
   const port = config.port;
-  const host = process.env.GISER_HOST || "0.0.0.0";
+  const host = process.env.GISER_HOST || "127.0.0.1";
   await app.listen({ port, host });
-  console.log(`[server] GiserAgent API 已启动: http://${host === "0.0.0.0" ? "127.0.0.1" : host}:${port}（监听 ${host}）`);
+  console.log(`[server] GisAgent Desktop API 已启动: http://${host}:${port}（监听 ${host}）`);
   const defaultModel = service.resolveDefaultModel();
   console.log(
     defaultModel

@@ -1,9 +1,9 @@
 {
-  "name": "giseragent-server",
+  "name": "gisagent-desktop-server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "GiserAgent Application API + Agent Adapter（Phase 0 骨架）",
+  "description": "GisAgent Desktop 内嵌本地服务：Application API + Agent Adapter",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",

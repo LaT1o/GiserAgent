@@ -1,8 +1,8 @@
-# GiserAgent — GIS 垂直领域 Agent
+# GisAgent Desktop — GIS 垂直领域 Agent
 
 一个面向 GIS 从业者的桌面 AI Agent 应用：内置开源 GIS Python 栈（geopandas / shapely / fiona / rasterio + GDAL 系，随应用分发，不依赖系统 Python）、可联动本机 ArcGIS Pro（arcpy），配备项目级 WebGIS 地图工作区。模型提供商全部在界面内配置（任意 OpenAI 兼容网关），密钥只落本机文件；会话数据本地落盘、可完整回放。
 
-![GiserAgent 主界面](assets/screenshots/01-overview.png)
+![GisAgent Desktop 主界面](assets/screenshots/01-overview.png)
 
 > 三栏布局：会话与图层列表 ｜ 地图工作区（天地图底图 + 地块上图）｜ 对话时间线（工具执行过程 + 统计表格）。
 
@@ -72,16 +72,16 @@ frontend（React + Electron）──HTTP/SSE──▶ server（Fastify API）─
 
 ## 快速开始
 
-> **版本状态**：当前发布版本 **0.1.4**，安装包见 [Releases](https://github.com/LaT1o/GiserAgent/releases)；源码即该版本，本地构建入口见下文「打包」。
+> **版本状态**：当前发布版本 **0.1.5**，安装包见 [Releases](https://github.com/LaT1o/GiserAgent/releases)；远程仓库重置后更新链接。源码即该版本，本地构建入口见下文「打包」。
 
 ### 安装包（免配置环境）
 
-双击安装包或免安装目录中的 `GiserAgent.exe` 即可启动，无需单独安装 Node.js 和 Python。首次打开后在「设置 → 模型提供商」中配置网关与 API Key（未配置不会阻止应用启动）。
+双击安装包或免安装目录中的 `GisAgent Desktop.exe` 即可启动，无需单独安装 Node.js 和 Python。首次打开后在「设置 → 模型提供商」中配置网关与 API Key（未配置不会阻止应用启动）。
 
-历史产物按版本归档在 `release/<版本号>/` 下（最新为 0.1.4）：
+历史产物按版本归档在 `release/<版本号>/` 下（最新为 0.1.5）：
 
-- `release/0.1.4/GiserAgent Setup 0.1.4.exe`：双击安装，使用桌面或开始菜单快捷方式启动。
-- `release/0.1.4/win-unpacked/GiserAgent.exe`：双击运行；移动时必须复制整个 `win-unpacked` 文件夹。
+- `release/0.1.5/GisAgent Desktop Setup 0.1.5.exe`：双击安装，使用桌面或开始菜单快捷方式启动。
+- `release/0.1.5/win-unpacked/GisAgent Desktop.exe`：双击运行；移动时必须复制整个 `win-unpacked` 文件夹。
 
 安装包包含 Electron 壳、后端（`resources/server/`）、前端静态资源与便携 Python 运行时（含 GIS 库栈）。首次打开无需 `.env`，也**没有环境变量默认提供商**：一切在界面配置（密钥写入应用目录的 `resources/server/.pi/auth.json`）；安装包内置空 providers 模板（打包时断言零提供商），不会带入开发机配置。打包态数据位于 `resources/workspace/`，升级前应保留。启动日志位于 Electron 用户数据目录 `logs/`，无需命令行启动即可查看。
 
@@ -97,7 +97,7 @@ npm --prefix frontend install
 日常启动即两个进程（仓库根 `dev.bat` 双击等效）；**前端与后端完全分离**：
 
 ```bash
-# 后端：纯 API（tsx 源码运行，改后端代码自动热更），0.0.0.0:13001
+# 后端：纯 API（tsx 源码运行，改后端代码自动热更），127.0.0.1:13001
 npm --prefix server run dev
 
 # 前端：Electron 桌面窗口——dev 模式内嵌 vite（改前端代码即时热更），等后端就绪后加载
@@ -116,7 +116,7 @@ npm run desktop          # 一条链：构建前端 + 后端 bundle 再启动
 npm run pack             # 打包（实际执行仓库根 release/pack.mjs）
 ```
 
-> 只有健康检查返回 GiserAgent 应用标识的服务才会被 Electron 复用；端口被其他程序占用时 Electron 会选择空闲端口，不结束外部进程。便携 Python 位于项目根 `runtime/python/`（gitignore，按 `scripts/setup-python.md` 重建或 `GISER_PYTHON` 指向本机解释器）。
+> 只有健康检查返回 GisAgent Desktop 应用标识的服务才会被 Electron 复用；端口被其他程序占用时 Electron 会选择空闲端口，不结束外部进程。便携 Python 位于项目根 `runtime/python/`（gitignore，按 `scripts/setup-python.md` 重建或 `GISER_PYTHON` 指向本机解释器）。
 
 ### 打包（唯一入口：release/pack.mjs）
 
@@ -150,7 +150,7 @@ node release/pack.mjs     # 仓库根目录执行；产物输出到 release/<版
 | `GISER_APPROVAL_TIMEOUT_MS` | `300000`                                                                                              | 审批超时（毫秒），超时视为拒绝                                                                                          |
 | `GISER_QUESTION_TIMEOUT_MS` | `300000`                                                                                              | ask_user 提问等待超时（毫秒），超时把「用户未回答」交回模型（不视为拒绝）                                               |
 | `PORT`                      | `13001`                                                                                                | API 端口                                                                                                                |
-| `GISER_HOST`                | `0.0.0.0`                                                                                             | 监听地址（局域网/穿透访问同一前端）；仅本机使用可设`127.0.0.1`                                                        |
+| `GISER_HOST`                | `127.0.0.1`                                                                                           | 监听地址；确需局域网/穿透访问时显式设为 `0.0.0.0`                                                                       |
 | `GISER_SERVE_DIST`          | 未设                                                                                                    | `=1` 时 tsx 源码形态（`npm run dev`）也托管 `frontend/dist`；bundle 形态始终托管，不受此项影响                    |
 
 > `server/.pi/models.json` 是**本地个人配置**（网关渠道定义，不入库）；首次启动自动从 `models.default.json` 复制生成。密钥只在 `auth.json`（gitignore）。
@@ -231,7 +231,7 @@ node release/pack.mjs     # 仓库根目录执行；产物输出到 release/<版
 ## 目录结构
 
 ```
-GiserAgent/
+GisAgent-desktop/
 ├── README.md / dev.bat          # 说明 / 一键开发启动
 ├── server/                      # 后端：Fastify + TypeScript（src/api 路由、src/application 服务、src/agent/pi SDK 集成与工具扩展）
 │   ├── .pi/                     # models.default.json 出厂模板 / skills 全局技能 / prompts 模板（models.json、auth.json 为本机配置，gitignore）
@@ -248,7 +248,7 @@ GiserAgent/
 
 ## 当前限制与已知问题
 
-- 无鉴权、无多用户；server 默认监听 `0.0.0.0`（局域网/穿透可直接访问，仅本机使用可设 `GISER_HOST=127.0.0.1`）。
+- 无鉴权、无多用户；server 默认只监听 `127.0.0.1`；确需局域网/穿透访问时显式设置 `GISER_HOST=0.0.0.0`。
 - 会话中断在工具执行中（如审批挂起）时，回放里该工具卡片保持 running 态（无 completed 事件落盘，数据真实状态）。
 - 工具不存在（如 write=off 后模型仍调用）时，`tool.completed` 可能误报成功，仅影响显示。
 - 压缩阈值改动只影响之后创建/恢复的会话；运行中会话需重启或重建后生效。

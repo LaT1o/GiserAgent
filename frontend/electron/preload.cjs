@@ -1,5 +1,5 @@
 /**
- * GiserAgent 桌面 preload。
+ * GisAgent Desktop 桌面 preload。
  *
  * 无边框窗口（frame: false）下，前端顶栏内置的最小化/最大化/关闭按钮
  * 经此桥接操作主进程窗口；contextIsolation 保持开启，仅暴露最小 API。

@@ -25,9 +25,6 @@ release/*
 !release/pack.mjs
 server/build/
 
-# 已废弃的 desktop 工程残留（壳已并入 frontend/electron）
-desktop/
-
 # 日志与临时输出
 logs/
 *.log

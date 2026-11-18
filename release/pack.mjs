@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * GiserAgent 打包脚本（唯一打包入口）。
+ * GisAgent Desktop 打包脚本（唯一打包入口）。
  *
  * 用法：
  *   根目录执行      node release/pack.mjs
@@ -42,7 +42,7 @@ const run = (label, command, args, cwd) => {
   }
 };
 
-console.log(`[pack] GiserAgent v${version} → ${outputDir}`);
+console.log(`[pack] GisAgent Desktop v${version} → ${outputDir}`);
 run("前端构建", "npm", ["run", "build"], frontendDir);
 run("后端 bundle", "npm", ["run", "build:server"], frontendDir);
 // -c 覆盖 package.json build 配置里的 directories.output，指向版本目录（绝对路径最稳）

@@ -95,7 +95,7 @@ async function main() {
       state: started.state,
     });
     const { reachable, identity } = await serverProcess.fetchHealth(port, 3000);
-    console.log(`[smoke] 通过: 127.0.0.1:${port} reachable=${reachable} identity=${identity}（status=ok & app=GiserAgent）`);
+    console.log(`[smoke] 通过: 127.0.0.1:${port} reachable=${reachable} identity=${identity}（status=ok & app=GisAgent Desktop）`);
     console.log("[smoke] spawn → 健康身份校验 → 清理 全链路 OK");
   } catch (err) {
     console.error(`[smoke] 失败: ${err.message}`);

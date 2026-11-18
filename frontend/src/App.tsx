@@ -936,7 +936,7 @@ export default function App() {
         <div className="sidebar-header">
           <span className="logo">
             <img className="logo-icon" src="/logo.png" alt="" aria-hidden="true" />
-            GiserAgent
+            GisAgent Desktop
           </span>
           <span className="sidebar-nav">
             <button

@@ -1,5 +1,5 @@
 /**
- * GiserAgent 桌面窗口（Electron 主进程，位于 frontend/electron/）。
+ * GisAgent Desktop 桌面窗口（Electron 主进程，位于 frontend/electron/）。
  *
  * 启动流程：单实例锁 → 启动画面 → server 子进程（spawn/复用，含身份校验）→
  * 健康检查通过 → 主窗口加载前端 → 关闭启动画面。任一环节失败都会：
@@ -7,7 +7,7 @@
  *
  * - 生产模式：spawn server/build/server.mjs（纯 Node 模式），加载 http://127.0.0.1:<port>
  *   （server 以 @fastify/static 托管 frontend/dist）。端口段内已有「身份匹配」的
- *   GiserAgent 实例则直接复用；被其他程序占用的端口跳过，绝不结束外部进程。
+ *   GisAgent Desktop 实例则直接复用；被其他程序占用的端口跳过，绝不结束外部进程。
  * - 开发模式（--dev）：前端与后端完全分离——前端由本进程 spawn vite（HMR，
  *   Electron 与浏览器加载同一地址，改前端代码即时热更；5173 已有外部 vite 则复用）；
  *   后端由外部启动（server/ npm run dev），本进程只做身份校验与带超时等待。
@@ -141,8 +141,8 @@ async function failStartup(err) {
   try {
     const { response } = await dialog.showMessageBox({
       type: "error",
-      title: "GiserAgent 启动失败",
-      message: "GiserAgent 启动失败",
+      title: "GisAgent Desktop 启动失败",
+      message: "GisAgent Desktop 启动失败",
       detail: `${reason}\n\n日志文件:\n${logFile}`,
       buttons: ["打开日志目录", "退出"],
       defaultId: 0,
@@ -206,11 +206,11 @@ async function startProductionServer() {
   // 404，视为不可复用——跳过它并在下方端口循环里让位（绝不结束外部进程）
   if (existing && existing.mode === "bundle") {
     serverOwned = false;
-    logLine(`复用已有 GiserAgent 服务: 端口 ${existing.port}`);
+    logLine(`复用已有 GisAgent Desktop 服务: 端口 ${existing.port}`);
     return `http://127.0.0.1:${existing.port}`;
   }
   if (existing) {
-    logLine(`端口 ${existing.port} 是 GiserAgent 开发服务（source 形态，不托管前端），不复用`);
+    logLine(`端口 ${existing.port} 是 GisAgent Desktop 开发服务（source 形态，不托管前端），不复用`);
   }
 
   let attempts = 0;
@@ -318,13 +318,13 @@ async function waitExternalServer() {
   while (Date.now() < deadline) {
     const { identity } = await serverProcess.fetchHealth(BASE_PORT, HEALTH_TIMEOUT_MS);
     if (identity) {
-      logLine(`检测到 GiserAgent 后端服务: 端口 ${BASE_PORT}（身份校验通过）`);
+      logLine(`检测到 GisAgent Desktop 后端服务: 端口 ${BASE_PORT}（身份校验通过）`);
       return;
     }
     await sleep(HEALTH_POLL_MS);
   }
   throw new Error(
-    `开发模式：未检测到 GiserAgent 后端服务（127.0.0.1:${BASE_PORT}，等待 ${Math.round(DEV_WAIT_TIMEOUT_MS / 1000)} 秒）。\n` +
+    `开发模式：未检测到 GisAgent Desktop 后端服务（127.0.0.1:${BASE_PORT}，等待 ${Math.round(DEV_WAIT_TIMEOUT_MS / 1000)} 秒）。\n` +
       `请先在 server/ 运行 npm run dev；若该端口被其他程序占用，请设置环境变量 GISER_PORT 换端口。`
   );
 }
@@ -342,7 +342,7 @@ async function createWindow(url) {
   win = new BrowserWindow({
     ...WINDOW_OPTS,
     autoHideMenuBar: true,
-    title: "GiserAgent",
+    title: "GisAgent Desktop",
     show: false, // 首帧就绪再显示，避免白屏/黑屏闪烁
     // 应用图标（任务栏/标题栏；打包后以 exe 图标为准）
     icon: path.join(desktopResourceDir(), "icon.ico"),
@@ -400,7 +400,7 @@ function createTray() {
   const iconPath = path.join(desktopResourceDir(), "logo.png");
   const image = nativeImage.createFromPath(iconPath);
   tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image.resize({ width: 32, height: 32 }));
-  tray.setToolTip("GiserAgent（单击显示/隐藏，右键菜单退出）");
+  tray.setToolTip("GisAgent Desktop（单击显示/隐藏，右键菜单退出）");
   tray.setContextMenu(
     Menu.buildFromTemplate([
       {
@@ -469,7 +469,7 @@ async function bootstrap() {
   const logDir = path.join(app.getPath("userData"), "logs");
   fs.mkdirSync(logDir, { recursive: true });
   logFile = path.join(logDir, "startup.log");
-  logLine(`GiserAgent 桌面端启动: mode=${IS_DEV ? "dev" : "production"} 端口段=${BASE_PORT}-${BASE_PORT + PORT_SCAN_COUNT - 1}`);
+  logLine(`GisAgent Desktop 桌面端启动: mode=${IS_DEV ? "dev" : "production"} 端口段=${BASE_PORT}-${BASE_PORT + PORT_SCAN_COUNT - 1}`);
 
   splash = createSplash();
 

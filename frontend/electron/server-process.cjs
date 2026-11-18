@@ -1,11 +1,11 @@
 /**
- * GiserAgent 桌面端 server 子进程控制（纯 Node 实现，不依赖 Electron）。
+ * GisAgent Desktop 桌面端 server 子进程控制（纯 Node 实现，不依赖 Electron）。
  *
  * main.cjs 在应用启动时引入并调用；electron/smoke.cjs（无 GUI 冒烟）复用同一实现，
  * 保证「spawn server → 身份健康检查 → 清理」链路可以不开窗口独立验证。
  *
  * 关键语义：
- * - /api/health 必须返回 { status: "ok", app: "GiserAgent" }（额外字段兼容），
+ * - /api/health 必须返回 { status: "ok", app: "GisAgent Desktop" }（额外字段兼容），
  *   只有身份匹配的服务才允许复用；端口被其他程序占用时跳过，绝不结束外部进程。
  * - 所有 HTTP 探测带单次超时（AbortSignal.timeout），等待进程退出即时失败，
  *   不会出现「hang 住的请求/已死进程」导致长时间静默等待。
@@ -17,7 +17,7 @@ const net = require("node:net");
 const path = require("node:path");
 
 /** /api/health 中的应用身份字段值；不匹配的一律视为外部服务，不复用、不结束 */
-const HEALTH_APP_ID = "GiserAgent";
+const HEALTH_APP_ID = "GisAgent Desktop";
 /** 日志文件大小上限（超过后清空重写，避免无限增长） */
 const LOG_MAX_BYTES = 2 * 1024 * 1024;
 /** 保留在内存中的子进程输出末段长度（用于失败提示） */
@@ -46,7 +46,7 @@ function probePortOpen(port, timeoutMs = 800) {
  * 单次健康检查（带超时）。
  * 返回 { reachable, identity, mode }：
  * - reachable：该端口有 HTTP 响应；
- * - identity：响应体为 { status: "ok", app: "GiserAgent" }（额外字段兼容）；
+ * - identity：响应体为 { status: "ok", app: "GisAgent Desktop" }（额外字段兼容）；
  * - mode：服务的运行形态（"source"=tsx 源码纯 API / "bundle"=构建产物托管前端），
  *   旧版本服务无该字段时按 "bundle" 对待（保持向后兼容）。
  */
@@ -166,7 +166,7 @@ async function waitServerReady({ proc, port, timeoutMs, pollMs, healthTimeoutMs,
       await sleep(300); // 宽限 stdio 刷盘，保证错误信息带得上输出末段
       const text = tailText();
       const err = new Error(
-        `GiserAgent 服务进程启动后立即退出（code=${proc.exitCode}）。\n输出末段:\n${text}`
+        `GisAgent Desktop 服务进程启动后立即退出（code=${proc.exitCode}）。\n输出末段:\n${text}`
       );
       err.earlyExit = true;
       err.portTaken = /EADDRINUSE|端口.*已被占用/i.test((tail && tail.text) || "");
@@ -177,7 +177,7 @@ async function waitServerReady({ proc, port, timeoutMs, pollMs, healthTimeoutMs,
     await sleep(pollMs);
   }
   const err = new Error(
-    `等待 GiserAgent 服务就绪超时（${Math.round(timeoutMs / 1000)} 秒，端口 ${port}）。\n输出末段:\n${tailText()}`
+    `等待 GisAgent Desktop 服务就绪超时（${Math.round(timeoutMs / 1000)} 秒，端口 ${port}）。\n输出末段:\n${tailText()}`
   );
   err.earlyExit = false;
   throw err;

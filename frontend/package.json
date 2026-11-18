@@ -1,10 +1,10 @@
 {
-  "name": "giseragent-frontend",
+  "name": "gisagent-desktop-frontend",
   "version": "0.1.5",
   "main": "electron/main.cjs",
   "private": true,
   "type": "module",
-  "description": "GiserAgent 前端（React 应用 + Electron 桌面壳，端口访问与桌面窗口共用同一前端）",
+  "description": "GisAgent Desktop 前端（React 应用 + Electron 桌面壳，端口访问与桌面窗口共用同一前端）",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -37,8 +37,8 @@
     "vite": "8.2.2"
   },
   "build": {
-    "appId": "com.giseragent.desktop",
-    "productName": "GiserAgent",
+    "appId": "com.lat1o.gisagent.desktop",
+    "productName": "GisAgent Desktop",
     "directories": {
       "output": "../release"
     },
@@ -62,8 +62,6 @@
         "from": "../server",
         "to": "server",
         "filter": [
-          "src/**",
-          "scripts/**",
           "python/**",
           "build/**",
           ".pi/prompts/**",
