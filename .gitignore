@@ -58,3 +58,4 @@ workspace/temp/
 
 # ZCode 会话计划等本地工具产物
 .zcode/
+.zcodeignore
